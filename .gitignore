@@ -1,0 +1,26 @@
+# Nothing that comes from the game is ever committed.
+# Your own ROM dump
+rom/
+*.nds
+# The game's code translated to C from your ROM (still Nintendo's code)
+generado/
+# Code and data pulled out of your ROM
+extraido/
+# Builds (made from the above)
+build/
+*.o
+*.ipa
+*.app/
+# SDL2, downloaded and compiled by ios/construir.sh
+ios/deps/
+
+# Personal files: save data, online profile, settings
+*.sav
+wfc.bin
+wfc_perfil.txt
+ajustes.ini
+fallos.txt
+repeticiones/
+
+# OS files
+.DS_Store
