@@ -33,6 +33,21 @@ ROM.
 
 `sh ios/construir.sh simulador` builds and opens it in the iOS Simulator instead.
 
+## Community
+
+Join the Discord for build help, bug reports and online races: **https://discord.gg/Cn6AEY8VCR**
+
+Server rules:
+
+1. Action Kart is an unofficial fan project, not affiliated with or endorsed by Nintendo.
+2. **No ROMs, no IPAs, no game files and no download links**, in chat or in DMs. Everyone builds their own app from
+   their own legally dumped copy. Breaking this means an instant ban.
+3. No piracy talk: don't ask or tell where to get the game.
+4. Build problems go in #build-help (include the error, your Mac model and macOS version); bugs go in #bug-reports
+   with a screenshot.
+5. Be kind. No harassment, hate, spam, NSFW or self-promotion.
+6. Moderators have the final say.
+
 ## Credits
 
 - alontube, for DS Kart Recompiled (recompiler, runtime, online rooms).
