@@ -793,6 +793,21 @@ static void pinta_botones_propios(void) {
             }
             continue;
         }
+        if (b->tipo == 13) {  // el mando conectado: pastilla con su nombre y una luz (verde: conectado; amarilla: pulsando)
+            ImU32 fondo = IM_COL32(14, 22, 80, 220);
+            d->AddRectFilled(ImVec2(b->x0, b->y0), ImVec2(b->x1, b->y1), fondo, h * 0.5f);
+            d->AddRect(ImVec2(b->x0, b->y0), ImVec2(b->x1, b->y1), celeste, h * 0.5f, 0, 1);
+            float r = h * 0.22f, cx = b->x0 + h * 0.5f, cy = (b->y0 + b->y1) / 2;
+            ImU32 luz = !b->icono ? IM_COL32(150, 160, 190, 255) : b->marcado ? oro : IM_COL32(90, 220, 120, 255);
+            d->AddCircleFilled(ImVec2(cx, cy), r, luz, 12);
+            const char *etiqueta = b->icono ? "CONTROLLER" : "INPUT";
+            float t = usa_letra(h * 0.55f);
+            ImVec2 te = letra_boton->CalcTextSizeA(t, 1e9f, 0, etiqueta);
+            texto_contorno(d, t, ImVec2(cx + r * 2, cy - te.y / 2), IM_COL32(169, 220, 255, 255), etiqueta, 1);
+            float t2 = usa_letra(h * 0.55f);
+            texto_contorno(d, t2, ImVec2(cx + r * 2 + te.x + h * 0.25f, cy - te.y / 2), IM_COL32(255, 255, 255, 255), b->texto, 1);
+            continue;
+        }
         if (b->tipo == 10) {  // botón redondo de los mandos táctiles (A, B, X, Y, R): letra dorada; pulsado, más claro
             float cx = (b->x0 + b->x1) / 2, cy = (b->y0 + b->y1) / 2, r = w / 2;
             d->AddCircleFilled(ImVec2(cx, cy + 2), r, IM_COL32(14, 22, 80, 200), 28);

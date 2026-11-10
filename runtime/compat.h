@@ -155,8 +155,46 @@ static inline void InitializeCriticalSection(CRITICAL_SECTION *c) {
 static inline void EnterCriticalSection(CRITICAL_SECTION *c) { pthread_mutex_lock(c); }
 static inline void LeaveCriticalSection(CRITICAL_SECTION *c) { pthread_mutex_unlock(c); }
 
-// ---- fibras (ucontext) ----
+// ---- fibras ----
 typedef void (*LPFIBER_START_ROUTINE)(void *);
+#if defined(__APPLE__) && TARGET_OS_IPHONE && defined(__aarch64__)
+// iOS: ucontext "ya no se admite" (en el iPhone de verdad no cambia de contexto: el ARM7 no arrancaba). El cambio se
+// hace a mano (fibra_ios.c): se guardan los registros que hay que conservar en la pila de la fibra que se deja, se
+// cambia de pila y se recuperan los de la otra. Una fibra nueva empieza en compat_trampolin con la fibra en x19.
+#define COMPAT_FIBRA_ASM 1
+typedef struct { void *sp; LPFIBER_START_ROUTINE f; void *arg; } CompatFibra;
+extern __thread CompatFibra *compat_fibra_actual;  // una sola para todo el programa (está en main_mkds.c)
+void compat_cambia(void **guarda_sp, void *nuevo_sp);  // fibra_ios.c
+void compat_trampolin(void);
+static inline void *ConvertThreadToFiber(void *p) {
+    (void)p;
+    CompatFibra *fb = calloc(1, sizeof *fb);
+    compat_fibra_actual = fb;
+    return fb;
+}
+static inline void *GetCurrentFiber(void) { return compat_fibra_actual; }
+static inline void *CreateFiberEx(size_t comprometida, size_t reserva, DWORD flags, LPFIBER_START_ROUTINE f, void *arg) {
+    (void)comprometida; (void)flags;
+    CompatFibra *fb = calloc(1, sizeof *fb);
+    void *pila = mmap(NULL, reserva, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (pila == MAP_FAILED) { free(fb); return NULL; }
+    uint64_t *marco = (uint64_t *)((((uintptr_t)pila + reserva) & ~(uintptr_t)15) - 0xA0);
+    memset(marco, 0, 0xA0);
+    marco[0] = (uint64_t)(uintptr_t)fb;                 // x19: la fibra (para compat_trampolin)
+    marco[11] = (uint64_t)(uintptr_t)compat_trampolin;  // x30: adonde vuelve el primer cambio
+    fb->sp = marco;
+    fb->f = f;
+    fb->arg = arg;
+    return fb;
+}
+static inline void SwitchToFiber(void *f) {
+    CompatFibra *antes = compat_fibra_actual, *despues = f;
+    if (antes == despues) return;
+    compat_fibra_actual = despues;
+    compat_cambia(&antes->sp, despues->sp);
+}
+#else
+// ---- con ucontext (Linux, macOS) ----
 typedef struct { ucontext_t ctx; LPFIBER_START_ROUTINE f; void *arg; } CompatFibra;
 extern __thread CompatFibra *compat_fibra_actual;  // una sola para todo el programa (está en main_mkds.c)
 static void compat_fibra_entra(unsigned hi, unsigned lo) {
@@ -193,6 +231,7 @@ static inline void SwitchToFiber(void *f) {
     compat_fibra_actual = despues;
     swapcontext(&antes->ctx, &despues->ctx);
 }
+#endif
 
 // ---- texto ----
 #define CP_UTF8 65001

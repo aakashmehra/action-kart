@@ -1294,6 +1294,19 @@ static void WINAPI fibra_arm7(void *p) {
     exit(1);
 }
 
+#if TARGET_OS_IPHONE
+// iOS: la pila del hilo principal es pequeña (y la del enlazador no vale como en el Mac): el ARM9 va en su propia fibra
+// con 256 MB, como el ARM7 en la suya; el hilo sigue siendo el principal (SDL y UIKit lo necesitan)
+static uint32_t entrada9_ios;
+static void WINAPI fibra_arm9(void *p) {
+    (void)p;
+    fprintf(stderr, "[ds] ARM9 arrancando en %08X (fibra propia)\n", entrada9_ios);
+    dispatch(&g_cpu9, entrada9_ios);
+    fprintf(stderr, "[ds] el arranque del ARM9 ha vuelto (no debería)\n");
+    exit(1);
+}
+#endif
+
 void ds_arranca(uint32_t entrada9, uint32_t e7) {
     QueryPerformanceFrequency(&frec);
     QueryPerformanceCounter(&t0);
@@ -1311,6 +1324,11 @@ void ds_arranca(uint32_t entrada9, uint32_t e7) {
     g_cpu9.ciclos = g_cpu7.ciclos = TURNO;
     hw[0].fibra = ConvertThreadToFiber(NULL);
     hw[1].fibra = CreateFiberEx(64 * 1024, 64 * 1024 * 1024, 0, fibra_arm7, NULL);
+#if TARGET_OS_IPHONE
+    entrada9_ios = entrada9;
+    hw[0].fibra = CreateFiberEx(64 * 1024, 256u * 1024 * 1024, 0, fibra_arm9, NULL);
+    SwitchToFiber(hw[0].fibra);  // (no vuelve)
+#endif
     fprintf(stderr, "[ds] ARM9 arrancando en %08X\n", entrada9);
     dispatch(&g_cpu9, entrada9);
     fprintf(stderr, "[ds] el arranque del ARM9 ha vuelto (no debería)\n");

@@ -437,6 +437,8 @@ static const uint64_t mascaras_p[][48] = {
 static const int masc_pant[NMASC] = {0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20};
 #define PANT_ONLINE 10
 #define PANT_CONTRARRELOJ 13
+static volatile int toque_principal = -1;  // el botón del menú principal tocado (un toque no mueve el marcado)
+static volatile uint32_t toque_principal_t;
 static volatile int marcado_p[32];  // lo último marcado en cada página (el menú principal dice si se va al online)  // de qué página de pantallas_p es cada rejilla
 
 // cuántos puntos de la rejilla cambian entre dos pantallas (lo marcado mueve unos 20; otra pantalla, más de 500)
@@ -467,6 +469,9 @@ static void cruceta(const int *bits, int n) {
 static const int ret_x[4] = {40, 100, 160, 220}, ret_y[3] = {30, 82, 134};  // centros de los 12 retratos
 
 static int ov_x, ov_y, ov_w, ov_h;  // (definidos más abajo)
+static char nombres_mandos[8][64];   // los mandos conectados (lee_mandos)
+static volatile int n_mandos;
+static volatile uint32_t mando_visto;  // cuándo se pulsó algo en un mando (SDL_GetTicks), para la luz de "funciona"
 static volatile int pausa_propia, pulsa_start;  // pausa con nuestro botón (o START): enseña nuestra página de pausa
 // tras QUIT: el juego pregunta en su pantalla de abajo; mientras, se enseña entera en el centro y se puede tocar
 static volatile int saliendo;
@@ -944,10 +949,19 @@ static void gl_pinta(int i, int subir) {
                 mb[n++] = (MenuBoton){x0m, y0m, x0m + w, y1m, "", 0, 5, 0, 0};
                 mb[n++] = (MenuBoton){x0m + H * 0.05f, y0m + H * 0.065f, x0m + w, y0m + H * 0.135f, pantallas_p[q].mensaje, 0, 7, 0, 0};
             }
+            if (!tactil) {  // abajo a la izquierda: qué mando hay y si funciona (la luz se enciende al pulsar)
+                static char nombre_chip[48];
+                float H = (float)dst_h, y1 = dst_y + dst_h - H * (q == 0 ? 0.08f : 0.03f), y0 = y1 - H * 0.095f;
+                int hay = n_mandos > 0;
+                snprintf(nombre_chip, sizeof nombre_chip, "%.40s", hay ? nombres_mandos[0] : "Keyboard");
+                int activo = hay && SDL_GetTicks() - mando_visto < 250;
+                mb[n++] = (MenuBoton){dst_x + H * 0.03f, y0, dst_x + H * 0.03f + H * 1.05f, y1, nombre_chip,
+                                      activo, 13, hay, 0};
+            }
             if (q == 0) {  // en el menú principal, el aviso: proyecto no oficial, el juego es de Nintendo
                 float H = (float)dst_h;
-                mb[n++] = (MenuBoton){dst_x + H * 0.04f, dst_y + dst_h - H * 0.075f, dst_x + dst_w, dst_y + dst_h - H * 0.025f,
-                                      "Unofficial fan project. Game (c) Nintendo. Not affiliated with Nintendo.", 0, 7, 0, 0};
+                mb[n++] = (MenuBoton){dst_x + H * 0.04f, dst_y + dst_h - H * 0.06f, dst_x + dst_w, dst_y + dst_h - H * 0.02f,
+                                      "Unofficial fan project. Game (c) Nintendo.", 0, 7, 0, 0};
             }
             {  // el título de la página (en el paso 2 de las copas, el nombre de la copa)
                 const char *tit = q == PANT_PISTAS && copa_vista >= 0 ? pantallas_p[PANT_COPAS].b[copa_vista].texto : pantallas_p[q].titulo;
@@ -1297,7 +1311,10 @@ void ventana_muestra_en(const uint32_t *arriba, const uint32_t *abajo, int64_t t
         else if (g_presentacion || en_carrera) ultima = -1;  // la presentación del circuito o la carrera: nada de menús
         else if (ultima >= 0 && igual < 90) { q = ultima; sin++; }  // animación o paso a otra: seguimos con la nuestra
         else ultima = -1;  // una pantalla quieta 1,5 s que no conocemos: la del juego
-        if (q == PANT_ONLINE && marcado_p[0] != 1) q = PANT_CONTRARRELOJ;  // misma pantalla: la del contrarreloj
+        {  // la del online y la del contrarreloj son iguales: lo elegido en el menú principal (tocado hace poco, o marcado)
+            int elegido = toque_principal >= 0 && SDL_GetTicks() - toque_principal_t < 10000 ? toque_principal : marcado_p[0];
+            if (q == PANT_ONLINE && elegido != 1) q = PANT_CONTRARRELOJ;
+        }
         if (q != PANT_COPAS && q != PANT_PISTAS) copa_vista = -1;
         if (!en_carrera) { pausa_propia = 0; saliendo = 0; }
         if (pausa_propia) q = PANT_PAUSA;
@@ -1443,6 +1460,7 @@ static void raton(int mx, int my, int pulsado) {
                 LeaveCriticalSection(&cs_destino);
                 if (mx < x0 || mx >= x1 || my < y0 || my >= y1) continue;
                 const BotonP *b = &pantallas_p[q].b[k];
+                if (q == 0) { toque_principal = k; toque_principal_t = SDL_GetTicks(); }
                 if (q == PANT_PAUSA) salir_pausa = 1;  // CONTINUE / QUIT: al soltar se quita nuestra pausa
                 if (q == PANT_PAUSA && k == 1) saliendo = 1;  // QUIT: lo que pregunte el juego se ve y se toca
                 if (b->accion == 2) { pulsa_a = 6; break; }
@@ -1490,8 +1508,6 @@ static void raton(int mx, int my, int pulsado) {
 }
 
 // los mandos conectados (para el menú): se apuntan aquí, en el hilo de la ventana (SDL no es de varios hilos)
-static char nombres_mandos[8][64];
-static volatile int n_mandos;
 int ventana_mandos(char nombres[][64], int max) {
     int n = n_mandos < max ? n_mandos : max;
     for (int i = 0; i < n; i++) memcpy(nombres[i], nombres_mandos[i], 64);
@@ -1611,6 +1627,7 @@ void ventana_mensajes(void) {
         }
         if (titulo_nuevo) { titulo_nuevo = 0; SDL_SetWindowTitle(ventana, titulo); }
         lee_mandos(&mando_in, &mando_xy, &combo);
+        if (mando_in != 0x3FF || mando_xy != 3) mando_visto = SDL_GetTicks();  // algo pulsado en un mando
         if (tactil && !menu_abierto()) lee_dedos();
     }
     static int combo_antes;  // L3 + R3: abre o cierra el menú

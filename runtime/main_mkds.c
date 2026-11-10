@@ -361,17 +361,87 @@ static void carga_codigo(const uint8_t *rom, size_t n) {
 // La carpeta del juego es la del launcher (rom\, ajustes.ini, partida.sav, repeticiones\), una por encima de
 // build\. Si se abre build\mkds.exe con doble clic, Windows arranca en build\ y no encontraba la ROM.
 #ifndef _WIN32
+#if defined(__APPLE__) && !TARGET_OS_IPHONE
+// La app de Mac (mac/empaquetar.sh: "Action Kart.app"): los datos (ROM, partida, ajustes) en
+// ~/Library/Application Support/Action Kart, y la ROM la pide al abrirse la primera vez, como en el iPhone.
+static int app_mac;
+#ifdef ROM_CRC
+#include <zlib.h>
+static uint32_t crc_rom(const char *ruta) {
+    FILE *f = fopen(ruta, "rb");
+    if (!f) return 0;
+    static unsigned char buf[1 << 16];
+    uLong c = crc32(0L, Z_NULL, 0);
+    for (size_t k; (k = fread(buf, 1, sizeof buf, f)) > 0;) c = crc32(c, buf, (uInt)k);
+    fclose(f);
+    return (uint32_t)c;
+}
+#endif
+static void mac_pide_rom(void) {
+    if (!app_mac) return;
+    const char *aviso = "To start, choose your own copy of the game: a Mario Kart DS (Europe) ROM. It is copied into "
+                        "the app's folder on this Mac.";
+    for (;;) {
+        FILE *hay = fopen("rom/mkds.nds", "rb");
+        if (hay) { fclose(hay); return; }
+        char orden[1200], ruta[1024] = "";
+        snprintf(orden, sizeof orden,
+                 "osascript -e 'display dialog \"%s\" buttons {\"Quit\", \"Choose ROM\"} default button 2 "
+                 "with title \"Action Kart\"' -e 'POSIX path of (choose file with prompt \"Choose your Mario Kart DS "
+                 "(Europe) ROM\")' 2>/dev/null", aviso);
+        FILE *p = popen(orden, "r");
+        if (!p || !fgets(ruta, sizeof ruta, p)) { if (p) pclose(p); exit(0); }  // "Quit" (o cancelar)
+        pclose(p);
+        ruta[strcspn(ruta, "\r\n")] = 0;
+        FILE *de = fopen(ruta, "rb"), *a = de ? fopen("rom/mkds.nds", "wb") : NULL;
+        static char buf[1 << 16];
+        for (size_t k; de && a && (k = fread(buf, 1, sizeof buf, de)) > 0;) fwrite(buf, 1, k, a);
+        if (de) fclose(de);
+        if (a) fclose(a);
+#ifdef ROM_CRC
+        if (crc_rom("rom/mkds.nds") != (uint32_t)ROM_CRC) {
+            remove("rom/mkds.nds");
+            aviso = "That file is not the ROM this app was built from. Choose the same Mario Kart DS (Europe) ROM.";
+        }
+#endif
+    }
+}
+#endif
+
 static void ve_a_la_carpeta_del_juego(void) {  // en Linux, igual: el ejecutable está en build/
     static char ruta[MAX_PATH];
 #if TARGET_OS_IPHONE  // iOS: todo en Documents de la app (la ROM la pide la app al abrirse: ios_rom.m)
     snprintf(ruta, sizeof ruta, "%s/Documents", getenv("HOME"));
     if (chdir(ruta)) {}
     mkdir("rom", 0755);
+    FILE *aj = fopen("ajustes.ini", "r");
+    if (aj) fclose(aj);
+    else if ((aj = fopen("ajustes.ini", "w"))) {  // los de iPhone: sin micrófono (su permiso bloqueaba el arranque),
+        fputs("NOMBRE=ActionKart\nESCALA=1\nFPS=60\nIDIOMA=1\nMICRO=0\nDISPOSICION=3\n", aj);  // el 3D a 1x
+        fclose(aj);
+    }
+    setenv("SDL_AUDIO_CATEGORY", "playback", 1);  // sonido aunque el interruptor de silencio esté puesto (como un juego)
     return;
 #endif
 #ifdef __APPLE__  // macOS no tiene /proc
     uint32_t tam = sizeof ruta;
     if (_NSGetExecutablePath(ruta, &tam)) return;
+#if !TARGET_OS_IPHONE
+    if (strstr(ruta, ".app/Contents/MacOS/")) {  // la app de Mac: los datos en Application Support
+        app_mac = 1;
+        snprintf(ruta, sizeof ruta, "%s/Library/Application Support/Action Kart", getenv("HOME"));
+        mkdir(ruta, 0755);
+        if (chdir(ruta)) {}
+        mkdir("rom", 0755);
+        FILE *aj = fopen("ajustes.ini", "r");
+        if (aj) fclose(aj);
+        else if ((aj = fopen("ajustes.ini", "w"))) {  // los ajustes de Action Kart: una pantalla 16:9, inglés
+            fputs("NOMBRE=ActionKart\nESCALA=2\nFPS=60\nPANTALLA_COMPLETA=0\nIDIOMA=1\nMICRO=0\nDISPOSICION=3\n", aj);
+            fclose(aj);
+        }
+        return;
+    }
+#endif
 #else
     ssize_t n = readlink("/proc/self/exe", ruta, sizeof ruta - 1);
     if (n <= 0) return;
@@ -406,6 +476,8 @@ static int arranca(void) {
     lee_ajustes();
 #if TARGET_OS_IPHONE
     ios_pide_rom();
+#elif defined(__APPLE__)
+    mac_pide_rom();
 #endif
     size_t n;
     FILE *hay = fopen("rom/mkds.nds", "rb");

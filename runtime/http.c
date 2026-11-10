@@ -44,6 +44,10 @@ int http_pide(const char *url, const char *cuerpo, char *r, int max, int espera)
     return codigo;
 }
 #else
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+#if !TARGET_OS_IPHONE  // (en iOS no se pueden lanzar programas: http_ios.m, con NSURLSession)
 #include <unistd.h>
 int http_pide(const char *url, const char *cuerpo, char *r, int max, int espera) {
     r[0] = 0;
@@ -72,6 +76,8 @@ int http_pide(const char *url, const char *cuerpo, char *r, int max, int espera)
     *ult = 0;
     return codigo ? codigo : -1;
 }
+#endif  // !TARGET_OS_IPHONE
 #endif
 
+int http_pide(const char *url, const char *cuerpo, char *r, int max, int espera);  // (en iOS, http_ios.m)
 int http_post(const char *url, char *r, int max) { return http_pide(url, NULL, r, max, 5000); }
