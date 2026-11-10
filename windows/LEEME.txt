@@ -1,0 +1,22 @@
+Action Kart for Windows (64-bit)
+================================
+
+1. Put this folder somewhere you can write to (Desktop or Documents, not
+   Program Files): the game saves its settings and progress here.
+   Windows 10 or 11, 64-bit.
+
+2. Double-click "Action Kart.exe". The first time it asks for your own copy
+   of the game (the same Mario Kart DS Europe ROM the game was built from)
+   and copies it into the rom folder.
+
+   If Windows SmartScreen says "Windows protected your PC": click
+   "More info", then "Run anyway".
+
+Controls: arrows = D-pad, X = A, Z = B, S = X, A = Y, Q = L, W = R,
+Enter = Start, Backspace = Select, mouse = touch, F11 = fullscreen,
+F1 = settings. Xbox and PlayStation controllers work too.
+
+Private rooms: to type a room code, use the keyboard or the on-screen keypad.
+
+If something goes wrong, send us mkds_log.txt from this folder (it is
+written fresh every time the game starts), plus fallos.txt if there is one.

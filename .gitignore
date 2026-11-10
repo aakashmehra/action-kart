@@ -24,3 +24,6 @@ repeticiones/
 
 # OS files
 .DS_Store
+
+# SDL2 for the Windows build (windows/empaquetar.sh downloads it)
+windows/deps/

@@ -32,7 +32,7 @@ int gl3d_pinta(const void *lista, int n, int tam_pp, const uint8_t *io, int wbuf
 int gl3d_pinta(const void *lista, int n, int tam_pp, const uint8_t *io, int wbuf, uint16_t *color, uint8_t *alfa,
                int an, int al);
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(MKDS_SDL)  // (Action Kart en Windows: el contexto de SDL, como en el Mac)
 #include <GL/gl.h>
 #define PIDE_GL(n) wglGetProcAddress(n)
 typedef char GLchar;
@@ -133,7 +133,7 @@ static int carga_funciones(void) {
 }
 
 // ---- el contexto (una ventana oculta del hilo de pintar) -----------------------------------------------------------
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(MKDS_SDL)  // (Action Kart en Windows: el contexto de SDL, como en el Mac)
 static HWND vent;
 static HDC dc;
 
@@ -402,7 +402,7 @@ int gl3d_pinta(const void *lista, int n, int tam_pp, const uint8_t *io, int wbuf
         estado = empieza() ? 1 : -1;
         if (estado < 0) { fprintf(stderr, "[gpu] no se puede: el 3D va por la CPU\n"); return 0; }
     }
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(MKDS_SDL)  // (Action Kart en Windows: el contexto de SDL, como en el Mac)
     MSG m;  // la ventana oculta es de este hilo: que no se le acumulen mensajes
     while (PeekMessageW(&m, NULL, 0, 0, PM_REMOVE)) DispatchMessageW(&m);
 #endif

@@ -11,6 +11,9 @@
 #pragma once
 #ifdef _WIN32
 #include <windows.h>
+#ifndef TARGET_OS_IPHONE
+#define TARGET_OS_IPHONE 0  // (lo usa ventana_sdl.c en expresiones, no solo en #if)
+#endif
 #else
 #ifdef __APPLE__  // macOS: ucontext solo con _XOPEN_SOURCE, y sin _DARWIN_C_SOURCE se esconden MAP_ANONYMOUS y más
 #ifndef _XOPEN_SOURCE
@@ -91,6 +94,11 @@ static inline HANDLE CreateThread(void *seg, size_t pila, LPTHREAD_START_ROUTINE
     pthread_attr_init(&at);
     pthread_attr_setdetachstate(&at, PTHREAD_CREATE_DETACHED);
     pthread_attr_setstacksize(&at, pila > (8u << 20) ? pila : (8u << 20));
+#ifdef __APPLE__
+    // en los núcleos rápidos: el 3D (sus bandas), el sonido y la red van al ritmo del juego (si no, macOS/iOS pueden
+    // mandarlos a los de bajo consumo y en el multijugador el más lento frena a todos)
+    pthread_attr_set_qos_class_np(&at, QOS_CLASS_USER_INTERACTIVE, 0);
+#endif
     pthread_t h;
     int r = pthread_create(&h, &at, compat_hilo, a);
     pthread_attr_destroy(&at);

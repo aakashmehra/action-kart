@@ -71,6 +71,6 @@ if [ "$total" -gt 0 ]; then
 fi
 
 # 3. unir
-if [ -n "$MAC" ]; then GL="-framework OpenGL -Wl,-stack_size,0x10000000"; else GL="-lGL"; fi  # macOS: 256 MB de pila en el hilo principal
+if [ -n "$MAC" ]; then GL="-framework OpenGL -framework Foundation -lobjc -Wl,-stack_size,0x10000000"; else GL="-lGL"; fi  # macOS: 256 MB de pila en el hilo principal
 clang -o build/mkds build/obj/*/*.o $(sdl2-config --libs) $GL -lpthread -lm
 echo "Listo: sh linux/jugar.sh"

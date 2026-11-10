@@ -145,6 +145,14 @@ static DWORD WINAPI vigilante(LPVOID p) {
             }
             ExitProcess(10);
         }
+#if defined(_WIN32) && defined(MKDS_SDL)
+        if (pasados == 6 || pasados == 12 || pasados == 21) {  // para mkds_log.txt: cómo va el arranque
+            extern uint64_t gx_frames(void);
+            fprintf(stderr, "\n[diag] %d s: escenas 3D %llu\n", pasados, (unsigned long long)gx_frames());
+            volcado(&g_cpu9);
+            volcado(&g_cpu7);
+        }
+#endif
         if (g_actividad == antes) {
             fprintf(stderr, "\n[mkds] atascado 3 s sin tocar el hardware\n");
             volcado(&g_cpu9);
@@ -465,7 +473,9 @@ static void ve_a_la_carpeta_del_juego(void) {
     barra = wcsrchr(ruta, L'\\');
     if (barra && !_wcsicmp(barra + 1, L"build")) *barra = 0;
     SetCurrentDirectoryW(ruta);
-#ifdef MKDS_SDL  // la versión de Action Kart (windows/construir.sh): sus ajustes la primera vez
+#ifdef MKDS_SDL  // la versión de Action Kart (windows/empaquetar.sh): sus ajustes la primera vez
+    // sin consola (es una app de ventana): lo que el juego cuenta por stderr va a mkds_log.txt, junto al .exe
+    if (freopen("mkds_log.txt", "w", stderr)) setvbuf(stderr, NULL, _IONBF, 0);
     CreateDirectoryW(L"rom", NULL);
     FILE *aj = fopen("ajustes.ini", "r");
     if (aj) fclose(aj);
@@ -526,7 +536,30 @@ static void win_pide_rom(void) {
 #if TARGET_OS_IPHONE
 void ios_pide_rom(void);  // ios_rom.m: el selector de archivos, hasta tener la ROM con la que se hizo la app
 #endif
+#if defined(__APPLE__) && !TARGET_OS_IPHONE
+// (sin los .h de objc: su BOOL choca con el de compat.h)
+void *objc_getClass(const char *nombre);
+void *sel_registerName(const char *nombre);
+void objc_msgSend(void);
+typedef void *id;
+typedef void *SEL;
+// macOS: sin App Nap. Con la ventana tapada (jugando en el móvil, por ejemplo) macOS frenaba los relojes del juego y
+// en el multijugador, que va al paso del más lento, se arrastraba a todos. Una actividad "iniciada por el usuario y
+// sensible a la latencia" (NSProcessInfo) lo evita mientras dura el juego.
+static void sin_app_nap(void) {
+    id info = ((id(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSProcessInfo"), sel_registerName("processInfo"));
+    id razon = ((id(*)(id, SEL, const char *))objc_msgSend)((id)objc_getClass("NSString"),
+                                                           sel_registerName("stringWithUTF8String:"), "Action Kart");
+    unsigned long long opciones = 0x00FFFFFFULL | 0xFF00000000ULL;  // NSActivityUserInitiated | NSActivityLatencyCritical
+    id act = ((id(*)(id, SEL, unsigned long long, id))objc_msgSend)(info, sel_registerName("beginActivityWithOptions:reason:"),
+                                                                   opciones, razon);
+    if (act) ((id(*)(id, SEL))objc_msgSend)(act, sel_registerName("retain"));  // (para siempre)
+}
+#endif
 static int arranca(void) {
+#if defined(__APPLE__) && !TARGET_OS_IPHONE
+    sin_app_nap();
+#endif
     ve_a_la_carpeta_del_juego();
     lee_ajustes();
 #if TARGET_OS_IPHONE

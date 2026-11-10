@@ -90,7 +90,21 @@ typedef struct { int x0, y0, x1, y1; const char *texto; int tipo, accion, tx, ty
 typedef struct { const char *etiqueta; int vx, vy, vw, vh, fy; } Selector;
 // mensaje: el texto del juego de esa pantalla (lo que pone arriba), dicho con el nuestro en una tarjeta
 // arriba: se deja lo que el juego pone en la de arriba (los récords, la descripción de la misión), sobre nuestro fondo
-typedef struct { uint32_t huella; const char *titulo; int n, panel; BotonP b[12]; const char *mensaje; const Selector *sel; int nsel; int arriba; } PantallaP;
+// Recorte: un texto del juego (nombres, valores) que se enseña en nuestro botón "boton": se quedan solo las letras
+// (lo que se aparta mucho del color de fondo del recuadro), en blanco; con etiqueta, ella a la izquierda y el texto
+// a la derecha. Un botón de barra sin texto del juego dice "EMPTY"
+typedef struct { int boton, x, y, w, h; const char *etiqueta; } Recorte;
+typedef struct { uint32_t huella; const char *titulo; int n, panel; BotonP b[16]; const char *mensaje; const Selector *sel; int nsel; int arriba; const Recorte *rec; int nrec; } PantallaP;
+// el multijugador del juego (sus grupos): los nombres de los grupos, la lista de corredores y los valores de las reglas
+static const Recorte rec_grupos[] = {{0, 68, 15, 132, 18, 0}, {1, 68, 47, 132, 18, 0}, {2, 68, 79, 132, 18, 0}, {3, 68, 111, 132, 18, 0}};
+static const Recorte rec_lista[] = {{0, 44, 2, 170, 146, 0}};
+static const Recorte rec_reglas[] = {{0, 130, 8, 106, 18, "CLASS"}, {3, 130, 36, 106, 18, "CPU KART"}, {6, 130, 64, 106, 18, "COURSE"},
+                                     {9, 24, 106, 208, 18, "RULES"}, {12, 130, 135, 106, 18, "TEAM"}};
+static const Recorte rec_reglas_inv[] = {{0, 130, 8, 106, 18, "CLASS"}, {1, 130, 36, 106, 18, "CPU KART"}, {2, 130, 64, 106, 18, "COURSE"},
+                                         {3, 24, 106, 208, 18, "RULES"}, {4, 130, 135, 106, 18, "TEAM"}};
+#define FILA_REGLA(r, ly, lx) {30, 2 + (r) * 30, 226, 28 + (r) * 30, "", 5, 15, 0, 0, 0}, \
+    {4, 2 + (r) * 30, 28, 28 + (r) * 30, "", 2, 1, lx, ly, 0}, {228, 2 + (r) * 30, 252, 28 + (r) * 30, "", 3, 1, 242, ly, 0}
+#define FILA_VER(r) {30, 2 + (r) * 30, 226, 28 + (r) * 30, "", 5, 15, 0, 0, 0}
 static const Selector sel_ajustes[] = {{"SOUND", 33, 44, 192, 22, 10}, {"LOCATE FRIEND", 33, 108, 192, 22, 82}};
 static const Selector sel_partida[] = {{"VS. OPPONENT", 40, 78, 176, 20, 58}};
 #define VOLVER(x, y) {0, 0, 0, 0, "BACK", 1, 1, x, y, 0}
@@ -165,8 +179,8 @@ static const PantallaP pantallas_p[] = {
     {0, "SEARCHING", 1, 6, {VOLVER(18, 178)}, "Searching for racers..."},  // buscando rivales
     {0, "PRIVATE ROOM", 4, 0,  // salas privadas: en internet con código (wifi.c) o en la misma wifi (sin código); hasta 8
      {{30, 72, 226, 102, "CREATE ONLINE ROOM", 0, 7, 0, 0, 0}, {30, 110, 226, 140, "JOIN ONLINE ROOM", 0, 8, 0, 0, 0},
-      {30, 148, 226, 178, "LOCAL ROOM (SAME WI-FI)", 0, 10, 128, 70, 0}, {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}},
-     "Up to 8 players: online with a code, or on the same Wi-Fi."},
+      {30, 148, 226, 178, "SAME WI-FI ROOM", 0, 10, 128, 70, 0}, {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}},
+     "Up to 8 players.\nOnline with a code, or the same Wi-Fi."},
     {0, "YOUR ROOM", 2, 0,  // la sala creada: el código y cuántos hay; START = el multijugador del juego
      {{0, 0, 0, 0, "START", 4, 10, 128, 70, 0}, {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}}, ""},
     {0, "JOIN ROOM", 4, 7,  // unirse: el código con nuestro teclado de píxeles (o el teclado del ordenador)
@@ -174,7 +188,33 @@ static const PantallaP pantallas_p[] = {
       {0, 0, 0, 0, "START", 4, 10, 128, 70, 0}, {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}}, ""},
     {0, "", 1, 0,  // la portada del juego (abajo en blanco, sin 3D): la nuestra; START para empezar
      {{0, 0, 0, 0, "PRESS START", 4, 2, 0, 0, 0}}},
+    // ---- el multijugador del juego (al que llevan las salas): sus grupos, con lo nuestro ----
+    {0, "MULTIPLAYER", 6, 0,  // 27: los grupos que hay (tocar uno para entrar) o crear uno
+     {{8, 4, 248, 34, "", 0, 1, 135, 24, 0}, {8, 38, 248, 68, "", 0, 1, 135, 56, 0}, {8, 72, 248, 102, "", 0, 1, 135, 88, 0},
+      {8, 106, 248, 136, "", 0, 1, 135, 120, 0}, {40, 146, 216, 176, "CREATE GROUP", 0, 1, 150, 157, 0}, VOLVER(18, 178)},
+     NULL, NULL, 0, 0, rec_grupos, 4},
+    {0, "NEW GROUP", 2, 0,  // 28: NORMAL (cada uno con su juego); la descarga (SIMPLE) aquí no sirve
+     {{30, 110, 226, 140, "CREATE GROUP", 0, 1, 128, 40, 0}, VOLVER(18, 178)}, "Everyone plays with their own copy."},
+    {0, "WAITING FOR RACERS", 2, 0,  // 29: el grupo, esperando (el anfitrión solo, o un invitado)
+     {{40, 0, 216, 150, "", 5, 15, 0, 0, 0}, VOLVER(18, 178)}, NULL, NULL, 0, 0, rec_lista, 1},
+    {0, "WAITING FOR RACERS", 3, 0,  // 30: el anfitrión con alguien más: START RACE (el CUT OFF del juego)
+     {{40, 0, 216, 150, "", 5, 15, 0, 0, 0}, {0, 0, 0, 0, "START RACE", 4, 1, 148, 167, 0}, VOLVER(18, 178)},
+     NULL, NULL, 0, 0, rec_lista, 1},
+    {0, "MULTIPLAYER", 0, 0, {{0}}, "Please wait..."},  // 31: "un momento", "guardando"
+    {0, "SELECT GAME", 3, 0,  // 32: el anfitrión elige el juego (sin globos: se inflan con el micrófono)
+     {{24, 30, 232, 70, "VS RACE", 0, 1, 140, 30, 0}, {24, 90, 232, 130, "SHINE RUNNERS", 0, 1, 140, 130, 0}, VOLVER(18, 178)}},
+    {0, "SELECT GAME", 0, 0, {{0}}, "The host is choosing the game."},  // 33: los invitados esperan
+    {0, "GAME SETTINGS", 16, 0,  // 34: las reglas (el anfitrión): cada fila con sus flechas y el valor del juego
+     {FILA_REGLA(0, 16, 121), FILA_REGLA(1, 43, 121), FILA_REGLA(2, 71, 121), FILA_REGLA(3, 114, 12), FILA_REGLA(4, 143, 121),
+      {0, 0, 0, 0, "OK", 4, 1, 128, 172, 0}}, NULL, NULL, 0, 0, rec_reglas, 5},
+    {0, "WAITING FOR HOST", 5, 0,  // 35: las reglas (un invitado): las ve, las pone el anfitrión
+     {FILA_VER(0), FILA_VER(1), FILA_VER(2), FILA_VER(3), FILA_VER(4)}, NULL, NULL, 0, 0, rec_reglas_inv, 5},
+    {0, "WELCOME", 1, 0,  // 36: la primera vez, "¿el apodo está bien?": SÍ (se cambia luego en OPTIONS)
+     {{0, 0, 0, 0, "OK", 4, 1, 67, 143, 0}}, "Welcome to Action Kart!\nRename your racer in OPTIONS."},
 };
+#define PANT_GRUPOS 27
+#define PANT_ESPERA_MP 31
+#define PANT_JUEGO_INV 33
 #define NPANT (int)(sizeof pantallas_p / sizeof pantallas_p[0])
 // Las rejillas de cada pantalla de pantallas_p (la pantalla de abajo: qué puntos tienen algo, 64 x 48), apuntadas con
 // MKDS_HUELLAS=1 (las líneas [mascara]). La de las pistas no tiene: se llega desde la de las copas.
@@ -459,9 +499,179 @@ static const uint64_t mascaras_p[][48] = {
      0x2fffffe0000003ffull, 0x1d6ffff0000007ffull, 0x7d3d73a0000007ffull, 0x00000000000007ffull,
      0x00000000000007ffull, 0x000000000007ffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
     },
+    {  // 123ee249
+     0x0000000000000000ull, 0x003ffffffffffffeull, 0x7ffffffffffffffeull, 0x7ffffffffffffffeull,
+     0x7ffffffffffffffeull, 0x7ffffffffffffffeull, 0x7ffffffffffffffeull, 0x7ffffffffffffffeull,
+     0x7ffffffffffffffeull, 0x7ffffffffffffffeull, 0x7ffffffffffffffeull, 0x7ffffffffffffffeull,
+     0x7ffffffffffffffeull, 0x7ffffffffffffffeull, 0x7ffffffffffffffeull, 0x7ffffffffffffffeull,
+     0x7ffffffffffffffeull, 0x7ffffffffffffffeull, 0x7ffffffffffffffeull, 0x7ffffffffffffffeull,
+     0x7ffffffffffffffeull, 0x7ffffffffffffffeull, 0x7ffffffffffffffeull, 0x7ffffffffffffffeull,
+     0x7ffffffffffffffeull, 0x7ffffffffffffffeull, 0x7ffffffffffffffeull, 0x7ffffffffffffffeull,
+     0x7ffffffffffffffeull, 0x7ffffffffffffffeull, 0x7ffffffffffffffeull, 0x7ffffffffffffffeull,
+     0x7ffffffffffffffeull, 0x7ffffffffffff800ull, 0x7ffffffffffff000ull, 0x7fffffffffffe000ull,
+     0x7fffffffffffe000ull, 0x7fffffffffffe000ull, 0x7fffffffffffe000ull, 0x7fffffffffffe1ffull,
+     0x7fffffffffffe3ffull, 0x7fffffffffffe7ffull, 0x7fffffffffffe7ffull, 0x7fffffffffffe7ffull,
+     0x00000000000007ffull, 0x000000000007ffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+    },
+    {  // a8d79200
+     0x07fffffffffffff0ull, 0x0ffffffffffffff8ull, 0x1ffffffffffffffcull, 0x3ffffffffffffffcull,
+     0x7ffffffffffffffcull, 0x7ffffffffffffffcull, 0x7ffffffffffffffcull, 0x7ffffffffffffffcull,
+     0x7ffffffffffffffcull, 0x7ffffffffffffffcull, 0x7ffffffffffffffcull, 0x7ffffffffffffffcull,
+     0x7ffffffffffffffcull, 0x7ffffffffffffffcull, 0x7ffffffffffffffcull, 0x7ffffffffffffffcull,
+     0x7ffffffffffffffcull, 0x7ffffffffffffffcull, 0x3ffffffffffffff8ull, 0x0000000000000000ull,
+     0x0ffffffffffffff0ull, 0x1ffffffffffffff8ull, 0x3ffffffffffffffcull, 0x7ffffffffffffffcull,
+     0x7ffffffffffffffcull, 0x7ffffffffffffffcull, 0x7ffffffffffffffcull, 0x7ffffffffffffffcull,
+     0x7ffffffffffffffcull, 0x7ffffffffffffffcull, 0x7ffffffffffffffcull, 0x7ffffffffffffffcull,
+     0x7ffffffffffffffcull, 0x7ffffffffffffffcull, 0x7ffffffffffffffcull, 0x7ffffffffffffffcull,
+     0x7ffffffffffffffcull, 0x3ffffffffffffff8ull, 0x0000000000000000ull, 0x00000000000001ffull,
+     0x00000000000003ffull, 0x00000000000007ffull, 0x00000000000007ffull, 0x00000000000007ffull,
+     0x00000000000007ffull, 0x000000000007ffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+    },
+    {  // 77de066c
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007ffffffffffe00ull, 0x0000000000000000ull, 0x00000000000001ffull,
+     0x00000000000003ffull, 0x00000000000007ffull, 0x00000000000007ffull, 0x00000000000007ffull,
+     0x00000000000007ffull, 0x000000000007ffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+    },
+    {  // eb8d6ba0
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007ffffffffffe00ull, 0x0000000000000000ull, 0x003ffffffff001ffull,
+     0x003ffffffff003ffull, 0x003ffffffff007ffull, 0x003ffffffff007ffull, 0x003ffffffff007ffull,
+     0x003ffffffff007ffull, 0x000000000007ffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+    },
+    {  // c4804ab4
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x00ffffffffffff00ull, 0x00ffffffffffff00ull, 0x00ffffffffffff00ull, 0x00ffffffffffff00ull,
+     0x00ffffffffffff00ull, 0x00fffffffffffe00ull, 0x00ffc00000000000ull, 0x00fffffffff00000ull,
+     0x003ffffffff00000ull, 0x003ffffffff00000ull, 0x003ffffffff00000ull, 0x003ffffffff00000ull,
+     0x003ffffffff00000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull,
+    },
+    {  // c7d8214c
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007ffffffffffe00ull, 0x0000000000000000ull, 0x003ffffffff00000ull,
+     0x003ffffffff00000ull, 0x003ffffffff00000ull, 0x003ffffffff00000ull, 0x003ffffffff00000ull,
+     0x003ffffffff00000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull,
+    },
+    {  // 331554e8
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull, 0x007fffffffffff00ull,
+     0x007fffffffffff00ull, 0x007ffffffffffe00ull, 0x0000000000000000ull, 0x0000000000000000ull,
+     0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull,
+     0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull,
+    },
+    {  // b2e8b8b9
+     0x0000000000000000ull, 0x0000000000000000ull, 0xffffffffffffff00ull, 0xffffffffffffff80ull,
+     0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull,
+     0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull,
+     0xffffffffffffff80ull, 0x0000000000000000ull, 0x0000000000000000ull, 0xffffffffffffff80ull,
+     0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull,
+     0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull,
+     0xffffffffffffff80ull, 0x0000000000000000ull, 0x0000000000000000ull, 0xffffffffffffff00ull,
+     0xffffffffffffff80ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull,
+     0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull,
+     0xffffffffffffffc0ull, 0xffffffffffffff80ull, 0x0000000000000000ull, 0x00000000000001ffull,
+     0x00000000000003ffull, 0x00000000000007ffull, 0x00000000000007ffull, 0x00000000000007ffull,
+     0x00000000000007ffull, 0x000000000007ffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+    },
+    {  // 63062205
+     0x0000000000000000ull, 0x0000000000000000ull, 0xffffffffffffff00ull, 0xffffffffffffff80ull,
+     0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull,
+     0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull,
+     0xffffffffffffff80ull, 0x0000000000000000ull, 0x0000000000000000ull, 0xffffffffffffff80ull,
+     0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull,
+     0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull,
+     0xffffffffffffff80ull, 0x0000000000000000ull, 0x0000000000000000ull, 0xffffffffffffff00ull,
+     0xffffffffffffff80ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull,
+     0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull, 0xffffffffffffffc0ull,
+     0xffffffffffffffc0ull, 0xffffffffffffff80ull, 0x0000000000000000ull, 0x0000000000000000ull,
+     0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull,
+     0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull,
+    },
+    {  // 1b5e9199
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffe00000ull, 0xffffffffffc00000ull, 0xffffffffff800000ull, 0xffffffffff000000ull,
+     0x000000ffff000000ull, 0x000000ffff000000ull, 0x000000ffff000000ull, 0x000000ffff000000ull,
+     0x000000ffff000000ull, 0x000000ffff000000ull, 0x0000000000000000ull, 0x0000000000000000ull,
+    },
+    {  // 96596c8d
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffe00000ull, 0xffffffffffc00000ull, 0xffffffffff8007feull, 0xffffffffff0007feull,
+     0x00000000000007feull, 0x00000000000007feull, 0x000004000054e7feull, 0x00007f5ff7d7e7feull,
+     0x0003ff5ff7d747feull, 0x00000000000007feull, 0x0000000000000000ull, 0x0000000000000000ull,
+    },
+    {  // 4afc1655 (la primera vez: el apodo)
+     0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull,
+     0x03ffffffffffffc0ull, 0x03ffffffffffffc0ull, 0x0000000000000000ull, 0x0000000000000000ull,
+     0x03fffff00fffffc0ull, 0x02ffffd00bffff40ull, 0x03fffff00fffffc0ull, 0x03fffff00fffffc0ull,
+     0x03fffff00fffffc0ull, 0x03fffff00fffffc0ull, 0x02ffffd00bffff40ull, 0x03fffff00fffffc0ull,
+     0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull,
+     0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull,
+    },
 };
 #define NMASC (int)(sizeof mascaras_p / sizeof mascaras_p[0])
-static const int masc_pant[NMASC] = {0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 22};
+static const int masc_pant[NMASC] = {0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 22,
+                                     27, 28, 29, 30, 31, 31, 31, 32, 33, 34, 35,  // (el multijugador)
+                                     36};
 #define PANT_ONLINE 10
 #define PANT_CONECTAR 11
 #define PANT_TITULO 26      // la portada (sin rejilla: abajo en blanco)
@@ -486,6 +696,10 @@ static int distancia(const uint64_t *a, const uint64_t *b) {
 }
 #define PANT_COPAS 5
 #define PANT_PISTAS 6
+static SDL_Texture *tex_letras;  // los textos del juego en nuestros botones (Recorte), solo las letras
+static SDL_Rect recorte_src[16];
+static SDL_FRect recorte_dst[16];
+static int nrecorte_d;
 static volatile int pantalla_p = -1;  // la de pantallas_p que se ve ahora; -1 ninguna (la del juego)
 static volatile int tapar_juego;      // transición entre pantallas: no se enseña la de abajo del juego
 static volatile int sel_personaje;    // el retrato marcado en la de elegir personaje (0-11)
@@ -860,6 +1074,20 @@ static void gl_pinta(int i, int subir) {
     SDL_RenderSetScale(pintor, (float)vw / ww, (float)vh / wh);  // en puntos de la ventana, como el ratón
     SDL_SetRenderDrawColor(pintor, 0, 0, 0, 255);
     SDL_RenderClear(pintor);
+    if (disposicion == 3) {  // fuera de la imagen 16:9 (las bandas del iPhone, de una ventana más ancha): nuestros cuadros,
+        // en línea con los de dentro, en vez de negro
+        float c = dst_h * 16.0f / 192, x0 = dst_x - ceilf(dst_x / c) * c, y0 = dst_y - ceilf(dst_y / c) * c;
+        SDL_SetRenderDrawColor(pintor, 0x14, 0x1F, 0x8E, 255);
+        SDL_RenderClear(pintor);
+        SDL_SetRenderDrawColor(pintor, 0x1B, 0x2A, 0xAE, 255);
+        for (float y = y0; y < wh; y += c)
+            for (float x = x0; x < ww; x += c) {
+                int ix = (int)lroundf((x - dst_x) / c), iy = (int)lroundf((y - dst_y) / c);
+                if (((ix + iy) & 1) == 0) continue;
+                SDL_FRect r = {x, y, c, c};
+                SDL_RenderFillRectF(pintor, &r);
+            }
+    }
     EnterCriticalSection(&cs_destino);
     float x = (float)dst_x, y = (float)dst_y, w = (float)dst_w, h = (float)dst_h;
     float ox = (float)ov_x, oy = (float)ov_y, ow = (float)ov_w, oh = (float)ov_h;
@@ -927,7 +1155,7 @@ static void gl_pinta(int i, int subir) {
             if (subir) sube_abajo(px + (size_t)iw * ih / 2, iw, ih / 2);  // (para recortar el retrato o el nombre)
             MenuBoton mb[64];
             int n = pantallas_p[q].n, mejor = -1, panel = pantallas_p[q].panel;
-            float luz[16] = {0}, max = 0, seg = 0;  // (una por botón: hasta 12 en BotonP b[12])
+            float luz[16] = {0}, max = 0, seg = 0;  // (una por botón: hasta 16 en BotonP b[16])
             for (int k = 0; k < n; k++) {
                 const BotonP *b = &pantallas_p[q].b[k];
                 rect_p(q, k, &mb[k].x0, &mb[k].y0, &mb[k].x1, &mb[k].y1);
@@ -1010,8 +1238,9 @@ static void gl_pinta(int i, int subir) {
                 SDL_SetRenderDrawBlendMode(pintor, SDL_BLENDMODE_NONE);
                 mb[n++] = (MenuBoton){x0m, y0m, x0m + w, y1m, "", 0, 5, 0, 0};
                 const char *msg = (q == PANT_SALA + 1 || q == PANT_SALA + 2) ? msg_sala : pantallas_p[q].mensaje;
-                mb[n++] = (MenuBoton){x0m + H * 0.05f, y0m + H * 0.065f, x0m + w, y0m + H * 0.135f, msg, 0, 7, 0, 0};
-                if (q == PANT_CONECTANDO || q == PANT_BUSCANDO)  // un círculo de puntos que gira: está trabajando
+                float my0 = strchr(msg, '\n') ? y0m + H * 0.03f : y0m + H * 0.065f;  // dos líneas: empieza más arriba
+                mb[n++] = (MenuBoton){x0m + H * 0.05f, my0, x0m + w - H * 0.05f, my0 + H * 0.07f, msg, 0, 7, 0, 0};
+                if (q == PANT_CONECTANDO || q == PANT_BUSCANDO || q == PANT_ESPERA_MP || q == PANT_JUEGO_INV)  // un círculo de puntos que gira: está trabajando
                     mb[n++] = (MenuBoton){x0m + w - H * 0.16f, y0m + H * 0.04f, x0m + w - H * 0.04f, y0m + H * 0.16f, "", 0, 14, 0, 0};
             }
             if (!tactil && (q == 0 || q == 7)) {  // abajo a la izquierda (menú principal y opciones): qué mando hay y si
@@ -1033,6 +1262,66 @@ static void gl_pinta(int i, int subir) {
                 float H = (float)dst_h;
                 mb[n++] = (MenuBoton){dst_x, dst_y + H * 0.28f, dst_x + dst_w, dst_y + H * 0.5f, "ACTION KART", 0, 15, 0, 0};
                 if ((SDL_GetTicks() / 600) % 2) mb[0].texto = "";  // (START parpadea)
+            }
+            nrecorte_d = 0;
+            if (pantallas_p[q].nrec) {  // textos del juego (nombres, valores) en nuestros botones: solo sus letras, en blanco
+                static uint32_t letras[256 * 192];
+                static char vacio[] = "EMPTY";
+                if (!tex_letras) {
+                    tex_letras = SDL_CreateTexture(pintor, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256, 192);
+                    SDL_SetTextureBlendMode(tex_letras, SDL_BLENDMODE_BLEND);
+                    SDL_SetTextureScaleMode(tex_letras, SDL_ScaleModeNearest);
+                }
+                memset(letras, 0, sizeof letras);
+                for (int r = 0; r < pantallas_p[q].nrec && nrecorte_d < 16; r++) {
+                    const Recorte *rc = &pantallas_p[q].rec[r];
+                    MenuBoton *bt = &mb[rc->boton];
+                    if (pantallas_p[q].b[rc->boton].tipo == 5) {  // tarjeta: su fondo, aquí (el menú pone el borde)
+                        SDL_SetRenderDrawBlendMode(pintor, SDL_BLENDMODE_BLEND);
+                        SDL_SetRenderDrawColor(pintor, 0x14, 0x1F, 0x8E, 235);
+                        SDL_FRect fr = {bt->x0, bt->y0, bt->x1 - bt->x0, bt->y1 - bt->y0};
+                        SDL_RenderFillRectF(pintor, &fr);
+                        SDL_SetRenderDrawBlendMode(pintor, SDL_BLENDMODE_NONE);
+                    }
+                    uint32_t fondo = ab[(rc->y + 1) * 256 + rc->x + 1];
+                    int x0 = 256, y0 = 192, x1 = -1, y1 = -1, por_fila[192] = {0};
+                    for (int y = rc->y; y < rc->y + rc->h && y < 192; y++)
+                        for (int x = rc->x; x < rc->x + rc->w && x < 256; x++) {
+                            uint32_t c = ab[y * 256 + x];
+                            if (c == 0x00010203u) continue;
+                            int dr = abs((int)((c >> 16) & 255) - (int)((fondo >> 16) & 255));
+                            int dg = abs((int)((c >> 8) & 255) - (int)((fondo >> 8) & 255));
+                            int db = abs((int)(c & 255) - (int)(fondo & 255));
+                            int m2 = dr > dg ? dr : dg;
+                            if (db > m2) m2 = db;
+                            if (m2 < 110) continue;
+                            letras[y * 256 + x] = 0xFFFFFFFFu;
+                            por_fila[y]++;
+                        }
+                    // lo que ocupan las letras: filas con al menos 2 puntos (un punto suelto no cuenta)
+                    for (int y = rc->y; y < rc->y + rc->h && y < 192; y++)
+                        if (por_fila[y] >= 2) { if (y < y0) y0 = y; y1 = y; }
+                    for (int y = y0; y <= y1; y++)
+                        for (int x = rc->x; x < rc->x + rc->w && x < 256; x++)
+                            if (letras[y * 256 + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
+                    float bx0 = bt->x0, bx1 = bt->x1, by0 = bt->y0, by1 = bt->y1;
+                    if (rc->etiqueta) {  // la etiqueta a la izquierda, el valor a la derecha
+                        float hh = by1 - by0;
+                        mb[n++] = (MenuBoton){bx0 + hh * 0.3f, by0 + hh * 0.22f, bx0 + (bx1 - bx0) * 0.45f, by1 - hh * 0.22f, rc->etiqueta, 0, 7, 0, 0};
+                        bx0 += (bx1 - bx0) * 0.42f;
+                    }
+                    if (y1 - y0 < 4 || x1 < x0) {  // sin letras (la raya de un hueco vacío)
+                        if (pantallas_p[q].b[rc->boton].tipo == 0) bt->texto = vacio;
+                        continue;
+                    }
+                    float sw = (float)(x1 - x0 + 1), sh = (float)(y1 - y0 + 1), dw = bx1 - bx0, dh = by1 - by0;
+                    float e = 0.9f * dw / sw;
+                    if (0.85f * dh / sh < e) e = 0.85f * dh / sh;
+                    if (dh * 0.5f / 11 < e) e = dh * 0.5f / 11;  // una línea: del alto de nuestras letras
+                    recorte_src[nrecorte_d] = (SDL_Rect){x0, y0, x1 - x0 + 1, y1 - y0 + 1};
+                    recorte_dst[nrecorte_d++] = (SDL_FRect){(bx0 + bx1 - sw * e) / 2, (by0 + by1 - sh * e) / 2, sw * e, sh * e};
+                }
+                SDL_UpdateTexture(tex_letras, NULL, letras, 256 * 4);
             }
             {  // el título de la página (en el paso 2 de las copas, el nombre de la copa)
                 const char *tit = q == PANT_PISTAS && copa_vista >= 0 ? pantallas_p[PANT_COPAS].b[copa_vista].texto : pantallas_p[q].titulo;
@@ -1148,6 +1437,9 @@ static void gl_pinta(int i, int subir) {
         skyendo_pinta(pintor, ww, wh, ms);
     }
     menu_pinta(ww, wh, vw, vh);  // el menú de ajustes y el contador de FPS, si toca
+    for (int r = 0; r < nrecorte_d && tex_letras; r++)  // los textos del juego, encima de nuestros botones
+        SDL_RenderCopyF(pintor, tex_letras, &recorte_src[r], &recorte_dst[r]);
+    nrecorte_d = 0;  // (se vuelven a poner en cada imagen, solo en nuestras páginas)
     {  // pruebas: MKDS_FOTO="450,800" guarda la ventana tal cual en esas imágenes (foto_450.bmp...) en MKDS_FOTO_DIR
         static const char *fotos;
         static int mirado;
@@ -1226,6 +1518,7 @@ void ventana_inicia(void) {
     SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");  // los dedos van por SDL_FINGER*, no como ratón
     if (!getenv("MKDS_DISPOSICION")) _putenv_s("MKDS_DISPOSICION", "3");  // una sola pantalla 16:9, la interfaz propia
 #endif
+    SDL_SetHint(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "0");  // los botones por su sitio en todos los mandos
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER)) {
         fprintf(stderr, "[ventana] SDL: %s\n", SDL_GetError());
         exit(1);
@@ -1404,6 +1697,27 @@ void ventana_muestra_en(const uint32_t *arriba, const uint32_t *abajo, int64_t t
             // la portada: abajo en blanco un rato, sin 3D ni carrera, pasada la de Skyendo y no tras "conectar"
             if (q < 0 && vacia && igual >= 8 && g_imagenes > 157 && !en_carrera && !g_presentacion)  // (con 3D también: el logo)
                 q = PANT_TITULO;
+        }
+        {  // el multijugador: elegir personaje y kart tapan toda la de abajo (su fondo no se quita), así que no tienen
+           // rejilla (y con su 3D arriba parecen una carrera). Tras una página del multijugador, por lo que tienen: la de
+           // los karts, el OK blanco abajo y el recuadro blanco del nombre; la de los personajes, el borde claro de los
+           // 12 retratos (las mismas que las de un jugador: sus páginas)
+            static int mp_vista;
+            if (q >= PANT_GRUPOS) mp_vista = 1;
+            else if (q == 0) mp_vista = 0;
+            if (q < 0 && mp_vista && !g_presentacion) {
+                int llenos = 0;
+                for (int i = 0; i < 48; i++) llenos += __builtin_popcountll(masc[i]);
+#define CLARO(x, y, v) (((b[(y) * 256 + (x)] >> 16) & 255) > (v) && ((b[(y) * 256 + (x)] >> 8) & 255) > (v) && (b[(y) * 256 + (x)] & 255) > (v))
+                if (llenos > 2600) {
+                    int retratos = 0;
+                    for (int c = 0; c < 12; c++) retratos += CLARO(ret_x[c % 4] - 19, ret_y[c / 4], 170);
+                    if (CLARO(104, 166, 200) && CLARO(40, 20, 200)) q = PANT_PERSONAJE + 1;
+                    else if (retratos >= 8) q = PANT_PERSONAJE;  // (los cursores de los demás tapan alguno)
+                    else if (ultima == PANT_PERSONAJE || ultima == PANT_PERSONAJE + 1) q = ultima;  // (un momento sin verse)
+                }
+#undef CLARO
+            }
         }
         if (q >= 0) { ultima = q; sin = 0; }
         else if (g_presentacion || en_carrera) ultima = -1;  // la presentación del circuito o la carrera: nada de menús
@@ -1592,6 +1906,7 @@ static void raton(int mx, int my, int pulsado) {
                 if (q == 0) { toque_principal = k; toque_principal_t = SDL_GetTicks(); }
                 if (q == PANT_PAUSA) salir_pausa = 1;  // CONTINUE / QUIT: al soltar se quita nuestra pausa
                 if (q == PANT_PAUSA && k == 1) saliendo = 1;  // QUIT: lo que pregunte el juego se ve y se toca
+                if (b->accion == 15) break;  // solo se enseña (una tarjeta)
                 if (b->accion == 2) { pulsa_a = 6; break; }
                 if (b->accion == 12) { sala_vista = 1; break; }                              // PRIVATE ROOM
                 if (b->accion == 7) { online_crear(); sala_vista = 2; break; }               // CREATE ROOM
@@ -1696,7 +2011,8 @@ static void lee_mandos(uint16_t *in, uint16_t *xy, int *combo) {
         int ly = SDL_GameControllerGetAxis(m, SDL_CONTROLLER_AXIS_LEFTY);
 #define B(b) SDL_GameControllerGetButton(m, SDL_CONTROLLER_BUTTON_##b)
         struct { int pulsado, bit; } t[] = {
-            {B(A), 0}, {B(B), 1}, {B(BACK), 2}, {B(START), 3},
+            // como en un mando de Nintendo, por su sitio: A el de la derecha, B el de abajo, X arriba, Y a la izquierda
+            {B(B), 0}, {B(A), 1}, {B(BACK), 2}, {B(START), 3},
             {B(DPAD_RIGHT) || lx > zona, 4}, {B(DPAD_LEFT) || lx < -zona, 5},
             {B(DPAD_UP) || ly < -zona, 6}, {B(DPAD_DOWN) || ly > zona, 7},
             {B(RIGHTSHOULDER) || SDL_GameControllerGetAxis(m, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 8000, 8},

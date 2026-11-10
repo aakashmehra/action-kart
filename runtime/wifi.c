@@ -679,7 +679,7 @@ static struct {
     uint16_t bitmap;            // aidBitmap del juego
     uint32_t leidos, hechos;    // conjuntos que ha leído el juego; pasos con mis datos ya puestos
     uint32_t cierre;            // anfitrión: siguiente conjunto por cerrar
-    int adelanto, atascos, buenos;
+    int adelanto, atascos, buenos, limpios;
     uint32_t sesion;
     uint32_t paso[DS_PASOS];    // qué paso guarda cada hueco del anillo (+1; 0 = vacío)
     uint16_t recibido[DS_PASOS], cerrado_con[DS_PASOS];
@@ -829,11 +829,12 @@ void wifi_ds_empieza(uint32_t info) {
     if (desactivado) return;
     dsh.info = info;
     const char *a = getenv("MKDS_LOCAL_ADELANTO");
-    dsh.adelanto = a && atoi(a) > 0 ? atoi(a) : 2;
+    dsh.adelanto = a && atoi(a) > 0 ? atoi(a) : 3;  // (3: con la wifi de un móvil, 2 se quedaba corto)
     if (dsh.adelanto > 12) dsh.adelanto = 12;
 }
 
 static uint64_t espera_desde;  // desde cuándo espera el conjunto que toca (0 = no espera)
+static uint32_t g_esperas_ds;  // imágenes perdidas esperando (para la traza)
 
 // WM_StepDataSharing (02144C6C): devuelve lo que devolvería el original (0 = conjunto leído, 5 = aún no) o -1
 // para dejar que lo haga el original.
@@ -865,8 +866,23 @@ int wifi_ds_paso(uint32_t info, uint32_t envio, uint32_t recibe) {
         for (int i = 1; i < 16; i++) if (invitados[i].usado) ds_envia_hijo(i);  // reenvía lo no confirmado
     } else ds_envia_padre();
     int k = (int)(dsh.leidos % DS_PASOS);
+    if (dsh.leidos > 0 && (dsh.paso[k] != dsh.leidos + 1 || !dsh.completo[k])) {
+        // aún no ha llegado: se espera un poco (hasta 6 ms) mirando la red, mejor que perder la imagen entera (eso es
+        // el tirón que se nota). Casi siempre el paquete llega tarde por pocos milisegundos
+        LARGE_INTEGER f, t0, t;
+        QueryPerformanceFrequency(&f);
+        QueryPerformanceCounter(&t0);
+        for (;;) {
+            red_atiende();
+            if (dsh.aid == 0) ds_cierra();
+            if (dsh.paso[k] == dsh.leidos + 1 && dsh.completo[k]) break;
+            QueryPerformanceCounter(&t);
+            if ((t.QuadPart - t0.QuadPart) * 1000 >= 6 * f.QuadPart) break;
+            Sleep(1);
+        }
+    }
     if (dsh.paso[k] != dsh.leidos + 1 || !dsh.completo[k]) {
-        if (dsh.leidos > 0) dsh.atascos++;
+        if (dsh.leidos > 0) { dsh.atascos++; g_esperas_ds++; }
         static uint64_t avisado;  // MKDS_WIFI_LOG: si se queda esperando más de 1 s, qué falta
         if (!espera_desde) espera_desde = ms_ahora;
         if (traza && ms_ahora - espera_desde > 1000 && ms_ahora - avisado > 1000) {
@@ -896,11 +912,25 @@ int wifi_ds_paso(uint32_t info, uint32_t envio, uint32_t recibe) {
     pon16(info + 0x81A, (uint16_t)dsh.leidos);  // currentSeqNum
     dsh.leidos++;
     // si hay que esperar a menudo (más de 4 veces cada 2 s), un paso más de adelanto
+    {  // MKDS_WIFI_LOG: cada 600 pasos (10 s), cuántas imágenes se han perdido esperando
+        static uint32_t perdidas_antes;
+        if (traza && dsh.leidos % 600 == 0) {
+            fprintf(stderr, "[wifi] carrera: paso %u, adelanto %d, esperas en los últimos 600: %u\n", dsh.leidos,
+                    dsh.adelanto, g_esperas_ds - perdidas_antes);
+            perdidas_antes = g_esperas_ds;
+        }
+    }
     if (++dsh.buenos >= 120) {
         if (dsh.atascos > 4 && dsh.adelanto < 12) {
             dsh.adelanto++;
+            dsh.limpios = 0;
             if (traza) fprintf(stderr, "[wifi] carrera: adelanto %d (%d esperas)\n", dsh.adelanto, dsh.atascos);
-        }
+        } else if (dsh.atascos == 0 && ++dsh.limpios >= 5 && dsh.adelanto > 3) {
+            // 10 s sin esperar nada: un paso menos (un pico de la wifi no deja los mandos con retraso toda la carrera)
+            dsh.adelanto--;
+            dsh.limpios = 0;
+            if (traza) fprintf(stderr, "[wifi] carrera: adelanto %d (va bien)\n", dsh.adelanto);
+        } else if (dsh.atascos) dsh.limpios = 0;
         dsh.buenos = dsh.atascos = 0;
     }
     return 0;
@@ -952,7 +982,11 @@ static void red_atiende(void) {
                 if (traza && (!grupos[g].visto || memcmp(grupos[g].mac, mac, 6)))
                     fprintf(stderr, "[wifi] grupo encontrado en %s\n", inet_ntoa(de.sin_addr));
                 Grupo *G = &grupos[g];
-                G->dir = de;
+                // llega por los dos caminos (la red de casa y la pública): si se puede, la de casa (más rápida)
+                uint32_t ip_de = ntohl(de.sin_addr.s_addr), ip_g = ntohl(G->dir.sin_addr.s_addr);
+                int casa_de = (ip_de >> 24) == 192 || (ip_de >> 24) == 10 || (ip_de >> 20) == 0xAC1;
+                int casa_g = (ip_g >> 24) == 192 || (ip_g >> 24) == 10 || (ip_g >> 20) == 0xAC1;
+                if (!G->visto || memcmp(G->mac, mac, 6) || casa_de || !casa_g) G->dir = de;
                 memcpy(G->mac, mac, 6);
                 memcpy(G->param, b + 14, 0x40);
                 G->info_largo = b[14 + 0x40];

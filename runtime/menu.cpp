@@ -12,6 +12,7 @@
 #include <pthread.h>
 #include <time.h>
 #endif
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -626,8 +627,8 @@ static void pestaña_mandos(void) {
         ImGui::TableSetupColumn(T("Teclado"));
         ImGui::TableHeadersRow();
         char a[64], b[64], x[64], y[64];  // Xbox / PlayStation (por posición: el de arriba es la X de la DS)
-        snprintf(a, sizeof a, "A / %s", T("Cruz"));
-        snprintf(b, sizeof b, "B / %s", T("Círculo"));
+        snprintf(a, sizeof a, "B / %s", T("Círculo"));  // como en Nintendo: A el de la derecha, B el de abajo
+        snprintf(b, sizeof b, "A / %s", T("Cruz"));
         snprintf(x, sizeof x, "Y / %s", T("Triángulo"));
         snprintf(y, sizeof y, "X / %s", T("Cuadrado"));
         const char *filas[][3] = {
@@ -890,6 +891,11 @@ static void pinta_botones_propios(void) {
         }
         if (b->tipo == 7) {  // título de la página: grande, dorado, con contorno y sombra (como en el diseño)
             float t = h;
+            for (int i = 0; w > 0 && i < 1 && t > 20; i++) {  // si no cabe a lo ancho (un mensaje largo), un tamaño menos
+                float tt0 = usa_letra(t);
+                if (letra_boton->CalcTextSizeA(tt0, 1e9f, 0, b->texto).x <= w) break;
+                t = tt0 - 10;
+            }
             float tt = usa_letra(t);
             d->AddText(letra_boton, tt, ImVec2((float)(int)b->x0 + 2, (float)(int)b->y0 + 3), navy, b->texto);
             texto_contorno(d, t, ImVec2(b->x0, b->y0), IM_COL32(247, 207, 58, 255), b->texto, g * 1.6f);
