@@ -11,12 +11,12 @@ cd "$(dirname "$0")/.."
 [ -d /opt/homebrew/bin ] && PATH="/opt/homebrew/bin:$PATH"  # cmake de Homebrew (Mac con chip de Apple)
 [ -d /usr/local/bin ] && PATH="$PATH:/usr/local/bin"
 DESTINO=${1:-iphone}
-[ -f rom/mkds.nds ] || { echo "Falta la ROM: copia tu Mario Kart DS europeo (AMCP) a rom/mkds.nds"; exit 1; }
-command -v xcrun > /dev/null || { echo "Falta Xcode (con el SDK de iOS)"; exit 1; }
+[ -f rom/mkds.nds ] || { echo "Missing ROM: copy your own Mario Kart DS (Europe, AMCP) dump to rom/mkds.nds"; exit 1; }
+command -v xcrun > /dev/null || { echo "Missing Xcode (with the iOS SDK): install it from the App Store and open it once"; exit 1; }
 
 # 1. la traducción de tu ROM a C (la misma que para el Mac; si ya está hecha, no se repite)
 sh linux/preparar.sh
-[ -d generado ] || { echo "No está la traducción (generado/): borra build/traduccion.txt y repite"; exit 1; }
+[ -d generado ] || { echo "The translated game code (generado/) is missing: delete build/traduccion.txt and run again"; exit 1; }
 
 # 2. SDL2 para iOS (una vez; queda en ios/deps, fuera de git)
 SDLV=2.30.9
@@ -25,7 +25,7 @@ S=$D/SDL2-$SDLV
 if [ "$DESTINO" = simulador ]; then SDK=iphonesimulator; TGT=arm64-apple-ios15.0-simulator; else SDK=iphoneos; TGT=arm64-apple-ios15.0; fi
 mkdir -p $D
 if [ ! -d $S ]; then
-    echo "Bajando SDL2 $SDLV..."
+    echo "Downloading SDL2 $SDLV..."
     curl -fsSL -o $D/sdl.tar.gz https://github.com/libsdl-org/SDL/releases/download/release-$SDLV/SDL2-$SDLV.tar.gz
     tar xzf $D/sdl.tar.gz -C $D
     rm $D/sdl.tar.gz
@@ -34,8 +34,8 @@ LIB=$(find $D/sdl-$SDK -name libSDL2.a 2> /dev/null | head -1)
 if [ -z "$LIB" ]; then
     # con CMake (no con su proyecto de Xcode: ese compila los sombreadores de Metal y Xcode 26 ya no trae esa
     # herramienta; CMake usa los que vienen hechos en SDL)
-    command -v cmake > /dev/null || { echo "Falta cmake (brew install cmake)"; exit 1; }
-    echo "Compilando SDL2 para $SDK..."
+    command -v cmake > /dev/null || { echo "Missing cmake: run  brew install cmake"; exit 1; }
+    echo "Building SDL2 for $SDK..."
     cmake -S $S -B $D/sdl-$SDK -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=$SDK -DCMAKE_OSX_ARCHITECTURES=arm64 \
         -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_BUILD_TYPE=Release -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST=OFF \
         > $D/sdl-$SDK.log 2>&1 || { tail -20 $D/sdl-$SDK.log; exit 1; }
@@ -80,7 +80,7 @@ lista() {
 }
 total=$(lista | wc -l)
 if [ "$total" -gt 0 ]; then
-    echo "Compilando $total archivos para $SDK con $n núcleos..."
+    echo "Compiling $total files for $SDK on $n cores..."
     lista | SYSROOT="$SYSROOT" TGT="$TGT" SDK="$SDK" S="$S" D="$D" ROMCRC="$ROMCRC" xargs -P "$n" -L 1 sh -c '
         extra=""
         [ "$3" = mkds7 ] && extra="-DCPU7"
@@ -88,7 +88,7 @@ if [ "$total" -gt 0 ]; then
         [ "$3" = menu ] && extra="-fno-exceptions -fno-rtti -fno-threadsafe-statics"
         [ "$3" = objc ] && extra="-fobjc-arc -DROM_CRC=$ROMCRC"
         xcrun --sdk "$SDK" clang -target "$TGT" -isysroot "$SYSROOT" -O2 -w -Iruntime -I"$S/include" -I"$D/sdlinc" \
-            -D_GNU_SOURCE -D_XOPEN_SOURCE=700 -D_DARWIN_C_SOURCE $extra -c "$1" -o "$2" || { echo "ERROR en $1"; exit 255; }' sh
+            -D_GNU_SOURCE -D_XOPEN_SOURCE=700 -D_DARWIN_C_SOURCE $extra -c "$1" -o "$2" || { echo "ERROR in $1"; exit 255; }' sh
 fi
 
 # 4. unir (la pila del hilo principal, 256 MB, como en el Mac)
@@ -114,9 +114,9 @@ if [ "$DESTINO" = simulador ]; then
     }
     xcrun simctl install booted $APP
     xcrun simctl launch booted com.skyendo.actionkart
-    echo "Abierta en el simulador."
+    echo "Opened in the iOS Simulator."
 else
     rm -f build/ActionKart.ipa
     (cd build/ios-$SDK && zip -qr ../ActionKart.ipa Payload)
-    echo "Lista: build/ActionKart.ipa (sin firmar). Instálala con AltStore, SideStore o Sideloadly. Solo para tus aparatos."
+    echo "Done: build/ActionKart.ipa (unsigned). Install it with Sideloadly, AltStore or SideStore. For your own devices only: never share it."
 fi
