@@ -795,6 +795,14 @@ static void pinta_botones_propios(void) {
             }
             continue;
         }
+        if (b->tipo == 15) {  // título grande centrado (la portada), dorado con contorno y sombra
+            float t = usa_letra(h);
+            ImVec2 tam = letra_boton->CalcTextSizeA(t, 1e9f, 0, b->texto);
+            float x = (b->x0 + b->x1 - tam.x) / 2, y = (b->y0 + b->y1 - tam.y) / 2;
+            d->AddText(letra_boton, t, ImVec2((float)(int)x + 3, (float)(int)y + 4), navy, b->texto);
+            texto_contorno(d, t, ImVec2(x, y), IM_COL32(247, 207, 58, 255), b->texto, 2);
+            continue;
+        }
         if (b->tipo == 14) {  // girando: 8 puntos en círculo, uno dorado que da la vuelta (pixelado)
             float cx = (b->x0 + b->x1) / 2, cy = (b->y0 + b->y1) / 2, r = w * 0.38f, p = w * 0.09f;
             int paso = (int)(ImGui::GetTime() * 10) % 8;

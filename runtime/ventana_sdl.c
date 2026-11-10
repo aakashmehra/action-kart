@@ -163,14 +163,17 @@ static const PantallaP pantallas_p[] = {
      {{40, 40, 216, 80, "CONTINUE", 0, 1, 126, 78, 0}, {40, 96, 216, 136, "QUIT", 0, 1, 126, 112, 0}}},
     {0, "ONLINE", 0, 0, {{0}}, "Connecting... please wait."},  // conectando (sin rejilla)
     {0, "SEARCHING", 1, 6, {VOLVER(18, 178)}, "Searching for racers..."},  // buscando rivales
-    {0, "PRIVATE ROOM", 3, 0,  // salas privadas (wifi.c): hasta 8, por código
-     {{40, 82, 216, 116, "CREATE ROOM", 0, 7, 0, 0, 0}, {40, 126, 216, 160, "JOIN ROOM", 0, 8, 0, 0, 0},
-      {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}}, "Up to 8 players with a room code."},
+    {0, "PRIVATE ROOM", 4, 0,  // salas privadas: en internet con código (wifi.c) o en la misma wifi (sin código); hasta 8
+     {{30, 72, 226, 102, "CREATE ONLINE ROOM", 0, 7, 0, 0, 0}, {30, 110, 226, 140, "JOIN ONLINE ROOM", 0, 8, 0, 0, 0},
+      {30, 148, 226, 178, "LOCAL ROOM (SAME WI-FI)", 0, 10, 128, 70, 0}, {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}},
+     "Up to 8 players: online with a code, or on the same Wi-Fi."},
     {0, "YOUR ROOM", 2, 0,  // la sala creada: el código y cuántos hay; START = el multijugador del juego
      {{0, 0, 0, 0, "START", 4, 10, 128, 70, 0}, {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}}, ""},
     {0, "JOIN ROOM", 3, 0,  // unirse: escribir el código (teclado o el del iPhone)
      {{40, 96, 216, 132, "JOIN", 0, 11, 0, 0, 0}, {0, 0, 0, 0, "START", 4, 10, 128, 70, 0},
       {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}}, ""},
+    {0, "", 1, 0,  // la portada del juego (abajo en blanco, sin 3D): la nuestra; START para empezar
+     {{0, 0, 0, 0, "PRESS START", 4, 2, 0, 0, 0}}},
 };
 #define NPANT (int)(sizeof pantallas_p / sizeof pantallas_p[0])
 // Las rejillas de cada pantalla de pantallas_p (la pantalla de abajo: qué puntos tienen algo, 64 x 48), apuntadas con
@@ -461,6 +464,7 @@ static const uint64_t mascaras_p[][48] = {
 static const int masc_pant[NMASC] = {0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 22};
 #define PANT_ONLINE 10
 #define PANT_CONECTAR 11
+#define PANT_TITULO 26      // la portada (sin rejilla: abajo en blanco)
 #define PANT_SALA 23        // salas privadas: el menú (+1 la creada, +2 unirse); se ven encima del menú principal
 #define PANT_CONECTANDO 21  // tras el SÍ: la pantalla de abajo en blanco, "conectando" (no tiene rejilla)
 #define PANT_BUSCANDO 22
@@ -505,6 +509,7 @@ static int ov_x, ov_y, ov_w, ov_h;  // (definidos más abajo)
 static char nombres_mandos[8][64];   // los mandos conectados (lee_mandos)
 static volatile int n_mandos;
 static volatile uint32_t mando_visto;  // cuándo se pulsó algo en un mando (SDL_GetTicks), para la luz de "funciona"
+static volatile int demo_portada;  // la demo de la portada está en marcha (se tapa con la nuestra y se sale)
 static volatile int pausa_propia, pulsa_start;  // pausa con nuestro botón (o START): enseña nuestra página de pausa
 // tras QUIT: el juego pregunta en su pantalla de abajo; mientras, se enseña entera en el centro y se puede tocar
 static volatile int saliendo;
@@ -1014,6 +1019,11 @@ static void gl_pinta(int i, int subir) {
                 mb[n++] = (MenuBoton){dst_x + H * 0.04f, dst_y + dst_h - H * 0.06f, dst_x + dst_w, dst_y + dst_h - H * 0.02f,
                                       "Unofficial fan project. Game (c) Nintendo.", 0, 7, 0, 0};
             }
+            if (q == PANT_TITULO) {  // la portada: el nombre grande en el centro y START parpadeando
+                float H = (float)dst_h;
+                mb[n++] = (MenuBoton){dst_x, dst_y + H * 0.28f, dst_x + dst_w, dst_y + H * 0.5f, "ACTION KART", 0, 15, 0, 0};
+                if ((SDL_GetTicks() / 600) % 2) mb[0].texto = "";  // (START parpadea)
+            }
             {  // el título de la página (en el paso 2 de las copas, el nombre de la copa)
                 const char *tit = q == PANT_PISTAS && copa_vista >= 0 ? pantallas_p[PANT_COPAS].b[copa_vista].texto : pantallas_p[q].titulo;
                 float H = (float)dst_h;
@@ -1115,7 +1125,8 @@ static void gl_pinta(int i, int subir) {
     }
     {  // la portada de Skyendo tapa la del arranque del juego: hasta la imagen 137 entera y se va en la 155, ya en el
        // título (contado en imágenes del juego, no en tiempo: así da igual lo que tarde en arrancar)
-        uint32_t ms = g_imagenes < 137 ? (SDL_GetTicks() < 2199 ? SDL_GetTicks() : 2199) : 2200 + (g_imagenes - 137) * 1000 / 60;
+        // (se queda hasta la imagen 162, cuando ya está nuestra portada debajo, y se va encima de ella)
+        uint32_t ms = g_imagenes < 162 ? (SDL_GetTicks() < 2199 ? SDL_GetTicks() : 2199) : 2200 + (g_imagenes - 162) * 1000 / 60;
         skyendo_pinta(pintor, ww, wh, ms);
     }
     menu_pinta(ww, wh, vw, vh);  // el menú de ajustes y el contador de FPS, si toca
@@ -1372,6 +1383,9 @@ void ventana_muestra_en(const uint32_t *arriba, const uint32_t *abajo, int64_t t
             static int la_vio;             // (solo si de verdad se ha visto: al arrancar también está en blanco)
             if (q < 0 && vacia && la_vio && g_imagenes - vio_conectar < 900) q = PANT_CONECTANDO;
             if (q == PANT_CONECTAR || q == PANT_CONECTANDO) { vio_conectar = g_imagenes; la_vio = 1; }
+            // la portada: abajo en blanco un rato, sin 3D ni carrera, pasada la de Skyendo y no tras "conectar"
+            if (q < 0 && vacia && igual >= 8 && g_imagenes > 157 && !en_carrera && !g_presentacion)  // (con 3D también: el logo)
+                q = PANT_TITULO;
         }
         if (q >= 0) { ultima = q; sin = 0; }
         else if (g_presentacion || en_carrera) ultima = -1;  // la presentación del circuito o la carrera: nada de menús
@@ -1385,6 +1399,18 @@ void ventana_muestra_en(const uint32_t *arriba, const uint32_t *abajo, int64_t t
         }
         if (q != PANT_COPAS && q != PANT_PISTAS) copa_vista = -1;
         if (!en_carrera) { pausa_propia = 0; saliendo = 0; }
+        {  // la demo de la portada: una "carrera" sin marcador (ni vuelta, ni puesto, ni objeto: casi ningún sprite
+           // arriba). Se sale sola pulsando A, y mientras tanto se ve nuestra portada, no la carrera
+            static int sin_marcador;
+            const uint8_t *spr = video_sprites_arriba();
+            int nspr = 0;
+            for (int i = 0; i < 192 * 256; i += 7) nspr += spr[i];
+            int corre = g_3d_arriba && gx_polis() > 100 && (pantalla_p < 0 || pantalla_p == PANT_TITULO || pantalla_p == 0);
+            sin_marcador = corre && !g_presentacion && nspr < 6 ? sin_marcador + 1 : 0;
+            demo_portada = sin_marcador > 12;
+            if (demo_portada && sin_marcador % 40 == 13) pulsa_a = 6;
+        }
+        if (demo_portada) q = PANT_TITULO;
         if (pausa_propia) q = PANT_PAUSA;
         if (q == 0 && sala_vista) q = PANT_SALA + sala_vista - 1;
         else if (q >= 0 && q < PANT_SALA) sala_vista = 0;  // (otra página del juego: se acabaron las salas)
@@ -1405,6 +1431,7 @@ void ventana_muestra_en(const uint32_t *arriba, const uint32_t *abajo, int64_t t
         int qp = pantalla_p, propia = qp >= 0 && qp != PANT_PAUSA, panel = propia ? pantallas_p[qp].panel : 0;
         int oscuro = qp == PANT_PAUSA;  // pausa: la carrera parada, oscurecida, detrás de nuestros botones
         int solo_fondo = propia && !con3d;  // páginas propias sin 3D: solo nuestro fondo (lo de arriba, si vale, va en tarjeta)
+        if (demo_portada || qp == PANT_TITULO) { solo_fondo = 1; con3d = 0; }  // la demo y el logo del juego no se ven
         if (qp == PANT_PERSONAJE && objetivo_p >= 0) solo_fondo = 1;  // camino de otro personaje: los de en medio no se ven
         const uint16_t *c3 = con3d ? gx_ancho_color() : NULL;
         const uint8_t *a3 = con3d ? gx_ancho_alfa() : NULL;
