@@ -1369,8 +1369,9 @@ void ventana_muestra_en(const uint32_t *arriba, const uint32_t *abajo, int64_t t
             int vacia = 1;
             for (int i = 0; i < 48 && vacia; i++) vacia = !masc[i];
             static uint32_t vio_conectar;  // la última imagen con la pregunta de conectarse (o con "conectando")
-            if (q < 0 && vacia && g_imagenes - vio_conectar < 900) q = PANT_CONECTANDO;
-            if (q == PANT_CONECTAR || q == PANT_CONECTANDO) vio_conectar = g_imagenes;
+            static int la_vio;             // (solo si de verdad se ha visto: al arrancar también está en blanco)
+            if (q < 0 && vacia && la_vio && g_imagenes - vio_conectar < 900) q = PANT_CONECTANDO;
+            if (q == PANT_CONECTAR || q == PANT_CONECTANDO) { vio_conectar = g_imagenes; la_vio = 1; }
         }
         if (q >= 0) { ultima = q; sin = 0; }
         else if (g_presentacion || en_carrera) ultima = -1;  // la presentación del circuito o la carrera: nada de menús
