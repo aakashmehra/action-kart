@@ -164,8 +164,8 @@ static const PantallaP pantallas_p[] = {
     {0, "ONLINE", 0, 0, {{0}}, "Connecting... please wait."},  // conectando (sin rejilla)
     {0, "SEARCHING", 1, 6, {VOLVER(18, 178)}, "Searching for racers..."},  // buscando rivales
     {0, "PRIVATE ROOM", 3, 0,  // salas privadas (wifi.c): hasta 8, por código
-     {{40, 30, 216, 66, "CREATE ROOM", 0, 7, 0, 0, 0}, {40, 86, 216, 122, "JOIN ROOM", 0, 8, 0, 0, 0},
-      {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}}, "Race with up to 8 friends using a room code."},
+     {{40, 82, 216, 116, "CREATE ROOM", 0, 7, 0, 0, 0}, {40, 126, 216, 160, "JOIN ROOM", 0, 8, 0, 0, 0},
+      {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}}, "Up to 8 players with a room code."},
     {0, "YOUR ROOM", 2, 0,  // la sala creada: el código y cuántos hay; START = el multijugador del juego
      {{0, 0, 0, 0, "START", 4, 10, 128, 70, 0}, {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}}, ""},
     {0, "JOIN ROOM", 3, 0,  // unirse: escribir el código (teclado o el del iPhone)
