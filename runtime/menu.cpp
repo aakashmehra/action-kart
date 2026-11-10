@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "imgui/imgui.h"
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(MKDS_SDL)  // (la ventana de Windows de siempre; Action Kart usa la de SDL también allí)
 #include "imgui/imgui_impl_opengl2.h"
 #define IMPL_INIT() ImGui_ImplOpenGL2_Init()
 #define IMPL_NEWFRAME() ImGui_ImplOpenGL2_NewFrame()
@@ -790,6 +790,17 @@ static void pinta_botones_propios(void) {
             if (b->texto && *b->texto) {
                 float t = h * 0.11f;
                 texto_contorno(d, t, ImVec2(b->x0 + h * 0.06f, b->y0 + h * 0.03f), oro, b->texto, g);
+            }
+            continue;
+        }
+        if (b->tipo == 14) {  // girando: 8 puntos en círculo, uno dorado que da la vuelta (pixelado)
+            float cx = (b->x0 + b->x1) / 2, cy = (b->y0 + b->y1) / 2, r = w * 0.38f, p = w * 0.09f;
+            int paso = (int)(ImGui::GetTime() * 10) % 8;
+            for (int k = 0; k < 8; k++) {
+                float a = k * 0.785398f, x = cx + cosf(a) * r, y = cy + sinf(a) * r;
+                int lejos = (paso - k + 8) % 8;
+                ImU32 col = lejos == 0 ? oro : lejos < 3 ? celeste : IM_COL32(60, 80, 170, 255);
+                d->AddRectFilled(ImVec2((float)(int)(x - p), (float)(int)(y - p)), ImVec2((float)(int)(x + p), (float)(int)(y + p)), col);
             }
             continue;
         }

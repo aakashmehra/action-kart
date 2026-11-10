@@ -418,6 +418,7 @@ static int a_arriba;  // el motor A pinta la pantalla de arriba (monta)
 volatile int g_3d_arriba;
 volatile int g_menu_propio;
 volatile int g_carrera;
+volatile int g_pagina_propia;  // ventana: se ve una página nuestra (en las del juego, sus textos de arriba se quedan)
 // qué puntos de la pantalla de arriba son de un sprite (el marcador: la posición, la vuelta...), para moverlos
 static uint8_t sprite_arriba[192][256];
 const uint8_t *video_sprites_arriba(void) { return &sprite_arriba[0][0]; }  // ventana: se está corriendo (el mapa de abajo es su fondo: no se quita)
@@ -551,7 +552,7 @@ static void dibuja_linea(const Motor *m, int y, uint32_t *out) {
         // en los menús, de la pantalla de arriba se quitan todos los fondos (el dibujo y el logo del juego): queda
         // nuestro fondo y lo que pinte con sprites
         if (g_abajo_sin_fondo && !g_carrera && !(m->es_a && (dc & 8)) &&
-            (id1 == 5 || id1 == capa_fondo || (m->es_a == a_arriba && id1 != 4 && !g_ver_arriba))) out[x] = CLAVE;
+            (id1 == 5 || id1 == capa_fondo || (m->es_a == a_arriba && id1 != 4 && !g_ver_arriba && g_pagina_propia))) out[x] = CLAVE;
         if (g_abajo_sin_fondo && g_menu_propio && m->es_a == a_arriba && !(id1 == 0 && m->es_a && (dc & 8)))
             out[x] = CLAVE;
     }

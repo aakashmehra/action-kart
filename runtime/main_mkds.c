@@ -465,7 +465,62 @@ static void ve_a_la_carpeta_del_juego(void) {
     barra = wcsrchr(ruta, L'\\');
     if (barra && !_wcsicmp(barra + 1, L"build")) *barra = 0;
     SetCurrentDirectoryW(ruta);
+#ifdef MKDS_SDL  // la versión de Action Kart (windows/construir.sh): sus ajustes la primera vez
+    CreateDirectoryW(L"rom", NULL);
+    FILE *aj = fopen("ajustes.ini", "r");
+    if (aj) fclose(aj);
+    else if ((aj = fopen("ajustes.ini", "w"))) {
+        fputs("NOMBRE=ActionKart\nESCALA=2\nFPS=60\nPANTALLA_COMPLETA=0\nIDIOMA=1\nMICRO=0\nDISPOSICION=3\n", aj);
+        fclose(aj);
+    }
+#endif
 }
+
+#if defined(_WIN32) && defined(MKDS_SDL)
+// Action Kart para Windows: pide la ROM la primera vez (la carpeta rom\ junto al .exe) y solo acepta la de la app
+#include <commdlg.h>
+static uint32_t crc_win(const char *ruta) {  // CRC-32 (el de zlib), sin zlib
+    static uint32_t t[256];
+    if (!t[1])
+        for (uint32_t i = 0; i < 256; i++) {
+            uint32_t c = i;
+            for (int k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+            t[i] = c;
+        }
+    FILE *f = fopen(ruta, "rb");
+    if (!f) return 0;
+    static unsigned char buf[1 << 16];
+    uint32_t c = 0xFFFFFFFFu;
+    for (size_t k; (k = fread(buf, 1, sizeof buf, f)) > 0;)
+        for (size_t i = 0; i < k; i++) c = t[(c ^ buf[i]) & 0xFF] ^ (c >> 8);
+    fclose(f);
+    return c ^ 0xFFFFFFFFu;
+}
+static void win_pide_rom(void) {
+    const wchar_t *aviso = L"To start, choose your own copy of the game: a Mario Kart DS (Europe) ROM. "
+                           L"It is copied into the rom folder next to the game.";
+    for (;;) {
+        FILE *hay = fopen("rom/mkds.nds", "rb");
+        if (hay) { fclose(hay); return; }
+        if (MessageBoxW(NULL, aviso, L"Action Kart", MB_OKCANCEL | MB_ICONINFORMATION) != IDOK) exit(0);
+        wchar_t ruta[MAX_PATH] = L"";
+        OPENFILENAMEW o = {sizeof o};
+        o.lpstrFilter = L"DS ROM (*.nds)\0*.nds\0All files\0*.*\0";
+        o.lpstrFile = ruta;
+        o.nMaxFile = MAX_PATH;
+        o.lpstrTitle = L"Choose your Mario Kart DS (Europe) ROM";
+        o.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+        if (!GetOpenFileNameW(&o)) continue;
+        CopyFileW(ruta, L"rom\\mkds.nds", FALSE);
+#ifdef ROM_CRC
+        if (crc_win("rom/mkds.nds") != (uint32_t)ROM_CRC) {
+            DeleteFileW(L"rom\\mkds.nds");
+            aviso = L"That file is not the ROM this game was built from. Choose the same Mario Kart DS (Europe) ROM.";
+        }
+#endif
+    }
+}
+#endif
 #endif
 
 #if TARGET_OS_IPHONE
@@ -478,6 +533,8 @@ static int arranca(void) {
     ios_pide_rom();
 #elif defined(__APPLE__)
     mac_pide_rom();
+#elif defined(_WIN32) && defined(MKDS_SDL)
+    win_pide_rom();
 #endif
     size_t n;
     FILE *hay = fopen("rom/mkds.nds", "rb");

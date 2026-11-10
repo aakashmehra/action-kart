@@ -161,6 +161,8 @@ static const PantallaP pantallas_p[] = {
      {{40, 40, 216, 76, "START", 0, 1, 128, 71, 0}, {40, 92, 216, 128, "BACK", 0, 1, 128, 119, 0}}, NULL, NULL, 0, 1},
     {0, "PAUSE", 2, 0,  // la pausa en carrera (START): sobre la carrera parada
      {{40, 40, 216, 80, "CONTINUE", 0, 1, 126, 78, 0}, {40, 96, 216, 136, "QUIT", 0, 1, 126, 112, 0}}},
+    {0, "ONLINE", 0, 0, {{0}}, "Connecting... please wait."},  // conectando (sin rejilla)
+    {0, "SEARCHING", 1, 6, {VOLVER(18, 178)}, "Searching for racers..."},  // buscando rivales
 };
 #define NPANT (int)(sizeof pantallas_p / sizeof pantallas_p[0])
 // Las rejillas de cada pantalla de pantallas_p (la pantalla de abajo: qué puntos tienen algo, 64 x 48), apuntadas con
@@ -432,10 +434,27 @@ static const uint64_t mascaras_p[][48] = {
      0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
      0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
     },
+    {  // online: buscando rivales
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+     0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0x00000000000001ffull,
+     0x2fffffe0000003ffull, 0x1d6ffff0000007ffull, 0x7d3d73a0000007ffull, 0x00000000000007ffull,
+     0x00000000000007ffull, 0x000000000007ffffull, 0xffffffffffffffffull, 0xffffffffffffffffull,
+    },
 };
 #define NMASC (int)(sizeof mascaras_p / sizeof mascaras_p[0])
-static const int masc_pant[NMASC] = {0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20};
+static const int masc_pant[NMASC] = {0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 22};
 #define PANT_ONLINE 10
+#define PANT_CONECTAR 11
+#define PANT_CONECTANDO 21  // tras el SÍ: la pantalla de abajo en blanco, "conectando" (no tiene rejilla)
+#define PANT_BUSCANDO 22
 #define PANT_CONTRARRELOJ 13
 static volatile int toque_principal = -1;  // el botón del menú principal tocado (un toque no mueve el marcado)
 static volatile uint32_t toque_principal_t;
@@ -511,6 +530,7 @@ static void rect_p(int q, int k, float *x0, float *y0, float *x1, float *y1) {
 // la tarjeta de la derecha: 1 el personaje, 2 el kart, 3 las pistas de una copa (en el centro)
 static void rect_tarjeta(int panel, float *x0, float *y0, float *x1, float *y1) {
     float H = (float)dst_h, m = H * 0.03f;
+    if (panel == 6) { *x0 = *y0 = *x1 = *y1 = 0; return; }  // (la tarjeta de los rivales se coloca sola)
     float w = panel == 1 ? H * 0.36f : panel == 2 ? H * 0.66f : H * 0.95f;
     float h = panel == 1 ? H * 0.5f : panel == 2 ? H * 0.64f : H * 0.62f;
     if (panel == 3) { *x0 = dst_x + (dst_w - w) / 2; *y0 = dst_y + H * BANDA; }
@@ -948,6 +968,8 @@ static void gl_pinta(int i, int subir) {
                 SDL_SetRenderDrawBlendMode(pintor, SDL_BLENDMODE_NONE);
                 mb[n++] = (MenuBoton){x0m, y0m, x0m + w, y1m, "", 0, 5, 0, 0};
                 mb[n++] = (MenuBoton){x0m + H * 0.05f, y0m + H * 0.065f, x0m + w, y0m + H * 0.135f, pantallas_p[q].mensaje, 0, 7, 0, 0};
+                if (q == PANT_CONECTANDO || q == PANT_BUSCANDO)  // un círculo de puntos que gira: está trabajando
+                    mb[n++] = (MenuBoton){x0m + w - H * 0.16f, y0m + H * 0.04f, x0m + w - H * 0.04f, y0m + H * 0.16f, "", 0, 14, 0, 0};
             }
             if (!tactil) {  // abajo a la izquierda: qué mando hay y si funciona (la luz se enciende al pulsar)
                 static char nombre_chip[48];
@@ -1011,6 +1033,13 @@ static void gl_pinta(int i, int subir) {
                         float lh = (b1 - b0) * 0.34f;
                         mb[n++] = (MenuBoton){a0 + (a1 - a0) * 0.05f, b0 + (b1 - b0) * 0.06f, a1, b0 + (b1 - b0) * 0.06f + lh, sl->etiqueta, 0, 7, 0, 0};
                     }
+                } else if (panel == 6) {  // los rivales que va encontrando el juego (su lista de abajo), en una tarjeta
+                    int e2 = iw / 256;
+                    SDL_Rect src = {0, 0, 256 * e2, 156 * e2};
+                    float H = (float)dst_h, ch = H * 0.42f, cw = ch * 256 / 156;
+                    SDL_FRect dc = {dst_x + (dst_w - cw) / 2, dst_y + H * 0.43f, cw, ch};
+                    if (tex_abajo) SDL_RenderCopyF(pintor, tex_abajo, &src, &dc);
+                    mb[n++] = (MenuBoton){dc.x, dc.y, dc.x + cw, dc.y + ch, "", 0, 5, 0, 0};
                 } else if (panel == 3) {  // las pistas de la copa: la lista que el juego enseña arriba al marcarla
                     int e2 = iw / 256;
                     SDL_Rect src = {0, 74 * e2, 176 * e2, 78 * e2};
@@ -1307,9 +1336,18 @@ void ventana_muestra_en(const uint32_t *arriba, const uint32_t *abajo, int64_t t
             int dd = distancia(masc, mascaras_p[k]);
             if (dd < mejor_d) { mejor_d = dd; q = masc_pant[k]; }
         }
+        {  // "conectando": la de abajo en blanco justo después de la pregunta de conectarse
+            int vacia = 1;
+            for (int i = 0; i < 48 && vacia; i++) vacia = !masc[i];
+            static uint32_t vio_conectar;  // la última imagen con la pregunta de conectarse (o con "conectando")
+            if (q < 0 && vacia && g_imagenes - vio_conectar < 900) q = PANT_CONECTANDO;
+            if (q == PANT_CONECTAR || q == PANT_CONECTANDO) vio_conectar = g_imagenes;
+        }
         if (q >= 0) { ultima = q; sin = 0; }
         else if (g_presentacion || en_carrera) ultima = -1;  // la presentación del circuito o la carrera: nada de menús
-        else if (ultima >= 0 && igual < 90) { q = ultima; sin++; }  // animación o paso a otra: seguimos con la nuestra
+        // animación o paso a otra: seguimos con la nuestra (menos la pregunta de conectarse: tras el SÍ, lo que va
+        // pasando, "conectando..." o un error, es del juego y se tiene que ver)
+        else if (ultima >= 0 && ultima != PANT_CONECTAR && igual < 90) { q = ultima; sin++; }
         else ultima = -1;  // una pantalla quieta 1,5 s que no conocemos: la del juego
         {  // la del online y la del contrarreloj son iguales: lo elegido en el menú principal (tocado hace poco, o marcado)
             int elegido = toque_principal >= 0 && SDL_GetTicks() - toque_principal_t < 10000 ? toque_principal : marcado_p[0];
@@ -1319,6 +1357,7 @@ void ventana_muestra_en(const uint32_t *arriba, const uint32_t *abajo, int64_t t
         if (!en_carrera) { pausa_propia = 0; saliendo = 0; }
         if (pausa_propia) q = PANT_PAUSA;
         pantalla_p = q;
+        { extern volatile int g_pagina_propia; g_pagina_propia = q >= 0; }
         g_menu_propio = q >= 0 && q != PANT_PAUSA && q != PANT_COPAS && q != PANT_PISTAS && !pantallas_p[q].arriba;
         g_ver_arriba = q >= 0 && pantallas_p[q].arriba;
         tapar_juego = q < 0 && igual < 20 && !en_carrera;
