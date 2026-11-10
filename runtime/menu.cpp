@@ -752,10 +752,10 @@ static void contador_fps(float W, float s) {
 }
 
 // ---- botones propios: barras inclinadas azules con borde celeste y letra Lilita (el diseño de Action Kart) ----
-static MenuBoton botones_p[16];
+static MenuBoton botones_p[64];
 static int nbotones_p;
 extern "C" void menu_pon_botones(const MenuBoton *b, int n) {
-    nbotones_p = n < 0 ? 0 : n > 16 ? 16 : n;
+    nbotones_p = n < 0 ? 0 : n > 64 ? 64 : n;
     if (nbotones_p) memcpy(botones_p, b, sizeof(MenuBoton) * (size_t)nbotones_p);
 }
 
@@ -793,6 +793,15 @@ static void pinta_botones_propios(void) {
                 float t = h * 0.11f;
                 texto_contorno(d, t, ImVec2(b->x0 + h * 0.06f, b->y0 + h * 0.03f), oro, b->texto, g);
             }
+            continue;
+        }
+        if (b->tipo == 16) {  // tecla del teclado de la sala: cuadrado azul con borde celeste y la letra dorada
+            d->AddRectFilled(ImVec2(b->x0, b->y0 + 2), ImVec2(b->x1, b->y1 + 2), navy, h * 0.2f);
+            d->AddRectFilled(ImVec2(b->x0, b->y0), ImVec2(b->x1, b->y1), IM_COL32(27, 42, 174, 255), h * 0.2f);
+            d->AddRect(ImVec2(b->x0, b->y0), ImVec2(b->x1, b->y1), celeste, h * 0.2f, 0, 1);
+            float t = usa_letra(h * 0.7f);
+            ImVec2 tam = letra_boton->CalcTextSizeA(t, 1e9f, 0, b->texto);
+            texto_contorno(d, t, ImVec2((b->x0 + b->x1 - tam.x) / 2, (b->y0 + b->y1 - tam.y) / 2), oro, b->texto, 1);
             continue;
         }
         if (b->tipo == 15) {  // título grande centrado (la portada), dorado con contorno y sombra

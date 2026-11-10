@@ -169,9 +169,9 @@ static const PantallaP pantallas_p[] = {
      "Up to 8 players: online with a code, or on the same Wi-Fi."},
     {0, "YOUR ROOM", 2, 0,  // la sala creada: el código y cuántos hay; START = el multijugador del juego
      {{0, 0, 0, 0, "START", 4, 10, 128, 70, 0}, {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}}, ""},
-    {0, "JOIN ROOM", 3, 0,  // unirse: escribir el código (teclado o el del iPhone)
-     {{40, 96, 216, 132, "JOIN", 0, 11, 0, 0, 0}, {0, 0, 0, 0, "START", 4, 10, 128, 70, 0},
-      {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}}, ""},
+    {0, "JOIN ROOM", 4, 7,  // unirse: el código con nuestro teclado de píxeles (o el teclado del ordenador)
+     {{11, 156, 62, 176, "DEL", 0, 14, 0, 0, 0}, {70, 156, 245, 176, "JOIN", 0, 11, 0, 0, 0},
+      {0, 0, 0, 0, "START", 4, 10, 128, 70, 0}, {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}}, ""},
     {0, "", 1, 0,  // la portada del juego (abajo en blanco, sin 3D): la nuestra; START para empezar
      {{0, 0, 0, 0, "PRESS START", 4, 2, 0, 0, 0}}},
 };
@@ -547,10 +547,20 @@ static void rect_p(int q, int k, float *x0, float *y0, float *x1, float *y1) {
     }
 }
 
+// el teclado del código de sala (panel 7): la tecla k (0-35: A-Z y 0-9), 9 por fila, en puntos de la ventana
+static const char teclas_sala[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+static void rect_tecla(int k, float *x0, float *y0, float *x1, float *y1) {
+    float H = (float)dst_h, top = dst_y + H * BANDA, alto = H * (0.84f - BANDA);
+    float bw = dst_w * 256.0f / 342, bx = dst_x + (dst_w - bw) / 2;
+    int col = k % 9, fila = k / 9, dx = 11 + col * 26, dy = 72 + fila * 21;
+    *x0 = bx + dx * bw / 256.0f; *x1 = bx + (dx + 24) * bw / 256.0f;
+    *y0 = top + dy * alto / 192.0f; *y1 = top + (dy + 19) * alto / 192.0f;
+}
+
 // la tarjeta de la derecha: 1 el personaje, 2 el kart, 3 las pistas de una copa (en el centro)
 static void rect_tarjeta(int panel, float *x0, float *y0, float *x1, float *y1) {
     float H = (float)dst_h, m = H * 0.03f;
-    if (panel == 6) { *x0 = *y0 = *x1 = *y1 = 0; return; }  // (la tarjeta de los rivales se coloca sola)
+    if (panel == 6 || panel == 7) { *x0 = *y0 = *x1 = *y1 = 0; return; }  // (estas se colocan solas)
     float w = panel == 1 ? H * 0.36f : panel == 2 ? H * 0.66f : H * 0.95f;
     float h = panel == 1 ? H * 0.5f : panel == 2 ? H * 0.64f : H * 0.62f;
     if (panel == 3) { *x0 = dst_x + (dst_w - w) / 2; *y0 = dst_y + H * BANDA; }
@@ -915,7 +925,7 @@ static void gl_pinta(int i, int subir) {
         } else {  // botones propios; el marcado es el del juego más claro (su pantalla de abajo, aunque no se vea)
             const uint32_t *ab = marcos[i].baja + 256 * 192;
             if (subir) sube_abajo(px + (size_t)iw * ih / 2, iw, ih / 2);  // (para recortar el retrato o el nombre)
-            MenuBoton mb[16];
+            MenuBoton mb[64];
             int n = pantallas_p[q].n, mejor = -1, panel = pantallas_p[q].panel;
             float luz[16] = {0}, max = 0, seg = 0;  // (una por botón: hasta 12 en BotonP b[12])
             for (int k = 0; k < n; k++) {
@@ -1071,6 +1081,14 @@ static void gl_pinta(int i, int subir) {
                         mb[n++] = (MenuBoton){a0, b0, a1, b1, "", 0, 5, 0, 0};
                         float lh = (b1 - b0) * 0.34f;
                         mb[n++] = (MenuBoton){a0 + (a1 - a0) * 0.05f, b0 + (b1 - b0) * 0.06f, a1, b0 + (b1 - b0) * 0.06f + lh, sl->etiqueta, 0, 7, 0, 0};
+                    }
+                } else if (panel == 7) {  // el teclado del código de sala
+                    static char letra[36][2];
+                    for (int k = 0; k < 36 && n < 60; k++) {
+                        letra[k][0] = teclas_sala[k]; letra[k][1] = 0;
+                        float a0, b0, a1, b1;
+                        rect_tecla(k, &a0, &b0, &a1, &b1);
+                        mb[n++] = (MenuBoton){a0, b0, a1, b1, letra[k], 0, 16, 0, 0};
                     }
                 } else if (panel == 6) {  // los rivales que va encontrando el juego (su lista de abajo), en una tarjeta
                     int e2 = iw / 256;
@@ -1549,6 +1567,19 @@ static void raton(int mx, int my, int pulsado) {
     if (disposicion == 3 && q >= 0) {  // botones propios: el toque va a su sitio del juego (o pulsa A, o cambia de personaje)
         static int antes, tx_, ty_, toca, salir_pausa;
         if (!pulsado) { g_lapiz = 0; antes = 0; toca = 0; if (salir_pausa) { pausa_propia = 0; salir_pausa = 0; } return; }
+        if (!antes && q == PANT_SALA + 2) {  // el teclado del código: una tecla, una letra
+            for (int k = 0; k < 36; k++) {
+                float x0, y0, x1, y1;
+                EnterCriticalSection(&cs_destino);
+                rect_tecla(k, &x0, &y0, &x1, &y1);
+                LeaveCriticalSection(&cs_destino);
+                if (mx < x0 || mx >= x1 || my < y0 || my >= y1) continue;
+                size_t l = strlen(codigo_sala);
+                if (l < 6) { codigo_sala[l] = teclas_sala[k]; codigo_sala[l + 1] = 0; }
+                antes = 1; toca = 0;
+                return;
+            }
+        }
         if (!antes) {  // al apoyar: qué botón y qué hace
             antes = 1; toca = 0;
             for (int k = 0; k < pantallas_p[q].n; k++) {
@@ -1564,10 +1595,11 @@ static void raton(int mx, int my, int pulsado) {
                 if (b->accion == 2) { pulsa_a = 6; break; }
                 if (b->accion == 12) { sala_vista = 1; break; }                              // PRIVATE ROOM
                 if (b->accion == 7) { online_crear(); sala_vista = 2; break; }               // CREATE ROOM
-                if (b->accion == 8) { codigo_sala[0] = 0; sala_vista = 3; SDL_StartTextInput(); break; }  // JOIN ROOM
-                if (b->accion == 9) { sala_vista = sala_vista > 1 ? 1 : 0; SDL_StopTextInput(); break; }  // BACK
+                if (b->accion == 8) { codigo_sala[0] = 0; sala_vista = 3; break; }  // JOIN ROOM (nuestro teclado; nada del sistema)
+                if (b->accion == 9) { sala_vista = sala_vista > 1 ? 1 : 0; break; }  // BACK
+                if (b->accion == 14) { size_t l = strlen(codigo_sala); if (l) codigo_sala[l - 1] = 0; break; }  // DEL
                 if (b->accion == 11) { if (strlen(codigo_sala) == 6) online_unirse(codigo_sala); break; }  // JOIN
-                if (b->accion == 10) { sala_vista = 0; SDL_StopTextInput(); }               // START: al multijugador
+                if (b->accion == 10) sala_vista = 0;                                          // START: al multijugador
                 if (b->accion == 6) { copa_vista = -1; break; }  // del paso 2 de las copas al 1 (solo lo nuestro)
                 if (b->accion == 5) copa_vista = k;
                 toca = 1;
