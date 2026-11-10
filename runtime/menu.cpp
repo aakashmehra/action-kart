@@ -690,7 +690,9 @@ extern "C" int wfc_ping_ms(void);  // wfc.c: el ping con los rivales del online 
 enum { ONL_NADA, ONL_CONECTANDO, ONL_SIN_SERVIDOR, ONL_SIN_STUN, ONL_NO_EXISTE, ONL_VERSION, ONL_LLENA, ONL_EN_SALA,
        ONL_UNIDO, ONL_CERRADA };
 
-static int hay_aviso_sala(void) { return online_estado(NULL, NULL) != ONL_NADA && gx_polis() < 500; }
+static int hay_aviso_sala(void) {  // (con la interfaz de Action Kart, DISPOSICION=3, la sala sale en sus páginas)
+    return online_estado(NULL, NULL) != ONL_NADA && gx_polis() < 500 && ventana_disposicion() != 3;
+}
 
 static void aviso_sala(float W, float s) {
     char codigo[8] = "";

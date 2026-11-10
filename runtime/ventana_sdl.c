@@ -96,9 +96,9 @@ static const Selector sel_partida[] = {{"VS. OPPONENT", 40, 78, 176, 20, 58}};
 #define VOLVER(x, y) {0, 0, 0, 0, "BACK", 1, 1, x, y, 0}
 #define COPA(x0, y0, nombre, k, cx, cy) {x0, y0, x0 + 58, y0 + 66, nombre, 9, 5, cx, cy, 11 + k}
 static const PantallaP pantallas_p[] = {
-    {0x2e87fa7au, "ACTION KART", 3, 0,  // (sin RECORDS ni el multijugador local: solo el online)
-     {{16, 12, 250, 50, "SINGLE PLAYER", 0, 1, 128, 24, 0}, {16, 70, 250, 108, "ONLINE", 0, 1, 128, 116, 0},
-      {16, 128, 250, 166, "OPTIONS", 0, 1, 193, 165, 0}}},
+    {0x2e87fa7au, "ACTION KART", 4, 0,  // (sin RECORDS; el multijugador va por las salas privadas, hasta 8)
+     {{16, 4, 250, 38, "SINGLE PLAYER", 0, 1, 128, 24, 0}, {16, 48, 250, 82, "ONLINE  (UP TO 4)", 0, 1, 128, 116, 0},
+      {16, 92, 250, 126, "PRIVATE ROOM  (UP TO 8)", 0, 12, 0, 0, 0}, {16, 136, 250, 170, "OPTIONS", 0, 1, 193, 165, 0}}},
     {0x549a4e4au, "SELECT MODE", 6, 0,
      {{40, 6, 240, 35, "GRAND PRIX", 0, 1, 150, 20, 0}, {40, 40, 240, 69, "TIME TRIALS", 0, 1, 150, 54, 0},
       {40, 74, 240, 103, "VS RACE", 0, 1, 150, 88, 0}, {40, 108, 240, 137, "BATTLE", 0, 1, 150, 122, 0},
@@ -163,6 +163,14 @@ static const PantallaP pantallas_p[] = {
      {{40, 40, 216, 80, "CONTINUE", 0, 1, 126, 78, 0}, {40, 96, 216, 136, "QUIT", 0, 1, 126, 112, 0}}},
     {0, "ONLINE", 0, 0, {{0}}, "Connecting... please wait."},  // conectando (sin rejilla)
     {0, "SEARCHING", 1, 6, {VOLVER(18, 178)}, "Searching for racers..."},  // buscando rivales
+    {0, "PRIVATE ROOM", 3, 0,  // salas privadas (wifi.c): hasta 8, por código
+     {{40, 30, 216, 66, "CREATE ROOM", 0, 7, 0, 0, 0}, {40, 86, 216, 122, "JOIN ROOM", 0, 8, 0, 0, 0},
+      {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}}, "Race with up to 8 friends using a room code."},
+    {0, "YOUR ROOM", 2, 0,  // la sala creada: el código y cuántos hay; START = el multijugador del juego
+     {{0, 0, 0, 0, "START", 4, 10, 128, 70, 0}, {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}}, ""},
+    {0, "JOIN ROOM", 3, 0,  // unirse: escribir el código (teclado o el del iPhone)
+     {{40, 96, 216, 132, "JOIN", 0, 11, 0, 0, 0}, {0, 0, 0, 0, "START", 4, 10, 128, 70, 0},
+      {0, 0, 0, 0, "BACK", 1, 9, 0, 0, 0}}, ""},
 };
 #define NPANT (int)(sizeof pantallas_p / sizeof pantallas_p[0])
 // Las rejillas de cada pantalla de pantallas_p (la pantalla de abajo: qué puntos tienen algo, 64 x 48), apuntadas con
@@ -453,9 +461,15 @@ static const uint64_t mascaras_p[][48] = {
 static const int masc_pant[NMASC] = {0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 22};
 #define PANT_ONLINE 10
 #define PANT_CONECTAR 11
+#define PANT_SALA 23        // salas privadas: el menú (+1 la creada, +2 unirse); se ven encima del menú principal
 #define PANT_CONECTANDO 21  // tras el SÍ: la pantalla de abajo en blanco, "conectando" (no tiene rejilla)
 #define PANT_BUSCANDO 22
 #define PANT_CONTRARRELOJ 13
+static volatile int sala_vista;  // 0 nada; 1 el menú de salas, 2 la creada, 3 unirse (sobre el menú principal)
+static char codigo_sala[8];      // el que se va escribiendo para unirse
+void online_crear(void);         // wifi.c
+void online_unirse(const char *codigo);
+int online_estado(char *codigo, int *jugadores);
 static volatile int toque_principal = -1;  // el botón del menú principal tocado (un toque no mueve el marcado)
 static volatile uint32_t toque_principal_t;
 static volatile int marcado_p[32];  // lo último marcado en cada página (el menú principal dice si se va al online)  // de qué página de pantallas_p es cada rejilla
@@ -519,7 +533,8 @@ static void rect_p(int q, int k, float *x0, float *y0, float *x1, float *y1) {
     } else {
         int con_volver = 0;
         for (int j = 0; j < pantallas_p[q].n; j++) con_volver |= pantallas_p[q].b[j].tipo == 1;
-        float top = dst_y + H * BANDA, alto = H * ((con_volver ? 0.84f : 0.97f) - BANDA);
+        // (el menú principal deja abajo sitio para el mando y el aviso)
+        float top = dst_y + H * BANDA, alto = H * ((con_volver ? 0.84f : q == 0 ? 0.80f : 0.97f) - BANDA);
         float bw = dst_w * 256.0f / 342, bx = dst_x + (dst_w - bw) / 2;  // el centro 4:3 (en carrera el recuadro de abajo es el mapa)
         if (pantallas_p[q].arriba) { bx = dst_x + dst_w * 0.03f; bw = dst_w * 0.55f; }  // a la izquierda: a la derecha va lo de arriba
         *x0 = bx + b->x0 * bw / 256.0f; *x1 = bx + (b->x1 + 1) * bw / 256.0f;
@@ -902,7 +917,7 @@ static void gl_pinta(int i, int subir) {
                 const BotonP *b = &pantallas_p[q].b[k];
                 rect_p(q, k, &mb[k].x0, &mb[k].y0, &mb[k].x1, &mb[k].y1);
                 mb[k].texto = b->texto; mb[k].tipo = b->tipo; mb[k].marcado = 0; mb[k].icono = b->icono; mb[k].valor = 0;
-                if (b->tipo != 0 && b->tipo != 8) continue;
+                if ((b->tipo != 0 && b->tipo != 8) || b->accion >= 7) continue;
                 int cuenta = 0;
                 int sx0 = b->x0 + 20, sx1 = b->x1 - 4, sy0 = b->y0 + 2, sy1 = b->y1 - 1;
                 if (b->accion == 1) {  // el botón del juego al que va el toque (el nuestro puede estar en otro sitio)
@@ -959,6 +974,18 @@ static void gl_pinta(int i, int subir) {
                 if (tex_arr) SDL_RenderCopyF(pintor, tex_arr, NULL, &fr);
                 mb[n++] = (MenuBoton){cx0, cy0, cx0 + cw, cy0 + ch, "", 0, 5, 0, 0};
             }
+            static char msg_sala[96];
+            if (q == PANT_SALA + 1 || q == PANT_SALA + 2) {  // la sala: el código y cuántos hay (o cómo va)
+                char cod[8] = "";
+                int jug = 0, e = online_estado(cod, &jug);
+                if (q == PANT_SALA + 1)
+                    snprintf(msg_sala, sizeof msg_sala, e == 7 ? "Room code: %s   Players: %d" : e == 1 ? "Creating room..." :
+                             "Could not create the room. Check your internet.", cod, jug + 1);
+                else
+                    snprintf(msg_sala, sizeof msg_sala, e == 8 ? "Joined room %s. Press START." : e == 1 ? "Joining..." :
+                             e == 4 ? "No room with code %s." : e == 6 ? "That room is full." : "Code: %s_", e == 4 ? codigo_sala :
+                             e == 8 ? cod : codigo_sala);
+            }
             if (pantallas_p[q].mensaje) {  // el mensaje de la pantalla, en una tarjeta arriba en el centro
                 float H = (float)dst_h, w = H * 1.1f, x0m = dst_x + (dst_w - w) / 2, y0m = dst_y + H * 0.2f, y1m = y0m + H * 0.2f;
                 SDL_SetRenderDrawBlendMode(pintor, SDL_BLENDMODE_BLEND);
@@ -967,13 +994,15 @@ static void gl_pinta(int i, int subir) {
                 SDL_RenderFillRectF(pintor, &fr);
                 SDL_SetRenderDrawBlendMode(pintor, SDL_BLENDMODE_NONE);
                 mb[n++] = (MenuBoton){x0m, y0m, x0m + w, y1m, "", 0, 5, 0, 0};
-                mb[n++] = (MenuBoton){x0m + H * 0.05f, y0m + H * 0.065f, x0m + w, y0m + H * 0.135f, pantallas_p[q].mensaje, 0, 7, 0, 0};
+                const char *msg = (q == PANT_SALA + 1 || q == PANT_SALA + 2) ? msg_sala : pantallas_p[q].mensaje;
+                mb[n++] = (MenuBoton){x0m + H * 0.05f, y0m + H * 0.065f, x0m + w, y0m + H * 0.135f, msg, 0, 7, 0, 0};
                 if (q == PANT_CONECTANDO || q == PANT_BUSCANDO)  // un círculo de puntos que gira: está trabajando
                     mb[n++] = (MenuBoton){x0m + w - H * 0.16f, y0m + H * 0.04f, x0m + w - H * 0.04f, y0m + H * 0.16f, "", 0, 14, 0, 0};
             }
-            if (!tactil) {  // abajo a la izquierda: qué mando hay y si funciona (la luz se enciende al pulsar)
+            if (!tactil && (q == 0 || q == 7)) {  // abajo a la izquierda (menú principal y opciones): qué mando hay y si
+                                                  // funciona (la luz se enciende al pulsar)
                 static char nombre_chip[48];
-                float H = (float)dst_h, y1 = dst_y + dst_h - H * (q == 0 ? 0.08f : 0.03f), y0 = y1 - H * 0.095f;
+                float H = (float)dst_h, y1 = dst_y + dst_h - H * (q == 0 ? 0.075f : 0.03f), y0 = y1 - H * 0.09f;
                 int hay = n_mandos > 0;
                 snprintf(nombre_chip, sizeof nombre_chip, "%.40s", hay ? nombres_mandos[0] : "Keyboard");
                 int activo = hay && SDL_GetTicks() - mando_visto < 250;
@@ -1356,6 +1385,8 @@ void ventana_muestra_en(const uint32_t *arriba, const uint32_t *abajo, int64_t t
         if (q != PANT_COPAS && q != PANT_PISTAS) copa_vista = -1;
         if (!en_carrera) { pausa_propia = 0; saliendo = 0; }
         if (pausa_propia) q = PANT_PAUSA;
+        if (q == 0 && sala_vista) q = PANT_SALA + sala_vista - 1;
+        else if (q >= 0 && q < PANT_SALA) sala_vista = 0;  // (otra página del juego: se acabaron las salas)
         pantalla_p = q;
         { extern volatile int g_pagina_propia; g_pagina_propia = q >= 0; }
         g_menu_propio = q >= 0 && q != PANT_PAUSA && q != PANT_COPAS && q != PANT_PISTAS && !pantallas_p[q].arriba;
@@ -1503,11 +1534,17 @@ static void raton(int mx, int my, int pulsado) {
                 if (q == PANT_PAUSA) salir_pausa = 1;  // CONTINUE / QUIT: al soltar se quita nuestra pausa
                 if (q == PANT_PAUSA && k == 1) saliendo = 1;  // QUIT: lo que pregunte el juego se ve y se toca
                 if (b->accion == 2) { pulsa_a = 6; break; }
+                if (b->accion == 12) { sala_vista = 1; break; }                              // PRIVATE ROOM
+                if (b->accion == 7) { online_crear(); sala_vista = 2; break; }               // CREATE ROOM
+                if (b->accion == 8) { codigo_sala[0] = 0; sala_vista = 3; SDL_StartTextInput(); break; }  // JOIN ROOM
+                if (b->accion == 9) { sala_vista = sala_vista > 1 ? 1 : 0; SDL_StopTextInput(); break; }  // BACK
+                if (b->accion == 11) { if (strlen(codigo_sala) == 6) online_unirse(codigo_sala); break; }  // JOIN
+                if (b->accion == 10) { sala_vista = 0; SDL_StopTextInput(); }               // START: al multijugador
                 if (b->accion == 6) { copa_vista = -1; break; }  // del paso 2 de las copas al 1 (solo lo nuestro)
                 if (b->accion == 5) copa_vista = k;
                 toca = 1;
                 if (b->accion == 0) { tx_ = (b->x0 + b->x1) / 2; ty_ = (b->y0 + b->y1) / 2; }
-                else if (b->accion == 1 || b->accion == 5) { tx_ = b->tx; ty_ = b->ty; }
+                else if (b->accion == 1 || b->accion == 5 || b->accion == 10) { tx_ = b->tx; ty_ = b->ty; }
                 else {  // personaje anterior / siguiente: a ese retrato con la cruceta, mirando dónde está (ventana_mensajes)
                     toca = 0;
                     int base = objetivo_p >= 0 ? objetivo_p : sel_personaje;  // (varios toques seguidos: desde el último)
@@ -1627,6 +1664,12 @@ void ventana_mensajes(void) {
             case SDL_KEYDOWN:
                 if (e.key.keysym.sym == SDLK_F1) { if (!e.key.repeat) menu_alterna(); break; }
                 if (menu) { if (tecla_menu(e.key.keysym.sym)) menu_tecla(tecla_menu(e.key.keysym.sym), 1); break; }
+                if (sala_vista == 3) {  // escribiendo el código: borrar, y Enter = JOIN; el juego no ve las teclas
+                    size_t l = strlen(codigo_sala);
+                    if (e.key.keysym.sym == SDLK_BACKSPACE && l) codigo_sala[l - 1] = 0;
+                    if ((e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_KP_ENTER) && l == 6) online_unirse(codigo_sala);
+                    break;
+                }
                 if (e.key.repeat) break;
                 if (e.key.keysym.sym == SDLK_F11 || (e.key.keysym.sym == SDLK_ESCAPE && pantalla_completa))
                     cambia_pantalla_completa();
@@ -1637,7 +1680,15 @@ void ventana_mensajes(void) {
                 if (tecla_menu(e.key.keysym.sym)) menu_tecla(tecla_menu(e.key.keysym.sym), 0);
                 tecla(e.key.keysym.sym, 0);  // soltar también para el juego
                 break;
-            case SDL_TEXTINPUT: if (menu) texto_menu(e.text.text); break;
+            case SDL_TEXTINPUT:
+                if (menu) texto_menu(e.text.text);
+                else if (sala_vista == 3)  // el código de la sala: 6 letras o números, en mayúsculas
+                    for (const char *c = e.text.text; *c; c++) {
+                        char k = *c >= 'a' && *c <= 'z' ? (char)(*c - 32) : *c;
+                        size_t l = strlen(codigo_sala);
+                        if (l < 6 && ((k >= 'A' && k <= 'Z') || (k >= '0' && k <= '9'))) { codigo_sala[l] = k; codigo_sala[l + 1] = 0; }
+                    }
+                break;
             case SDL_MOUSEWHEEL: menu_rueda((float)e.wheel.y); break;
             case SDL_FINGERDOWN: case SDL_FINGERMOTION: case SDL_FINGERUP: {
                 int w, h;
@@ -1705,6 +1756,18 @@ void ventana_mensajes(void) {
         int start = !((teclado_in & mando_in & g_guion_in) & 8);
         if (start && !start_antes && en_carrera && disposicion == 3) { pausa_propia = !pausa_propia; saliendo = 0; }
         start_antes = start;
+    }
+    {  // pruebas: MKDS_PRUEBA_SALA="350:1,500:2" abre esa página de salas en esa imagen (2 crea la sala de verdad)
+        static const char *ps;
+        static int mirado;
+        static uint32_t hecha;
+        if (!mirado) { ps = getenv("MKDS_PRUEBA_SALA"); mirado = 1; }
+        for (const char *p = ps; p && *p;) {
+            unsigned f = (unsigned)strtoul(p, (char **)&p, 10), v = 0;
+            if (*p == ':') v = (unsigned)strtoul(p + 1, (char **)&p, 10);
+            if (*p == ',') p++;
+            if (f == g_imagenes && f != hecha) { hecha = f; sala_vista = (int)v; if (v == 2) online_crear(); }
+        }
     }
     {  // pruebas: MKDS_PRUEBA_SIG="1200,1300" pulsa nuestro "siguiente" en esas imágenes
         static const char *ps;
